@@ -5,13 +5,18 @@ import { TradeEntry } from './components/TradeEntry';
 import { TradesList } from './components/TradesList';
 import { AccountManager } from './components/AccountManager';
 import { Gameplan } from './components/Gameplan';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { JournalAnalysis } from './components/JournalAnalysis';
+import { FloatingMIA } from './components/FloatingMIA';
 import { Trade, Account } from './types/trade';
-import { TrendingUp, Menu, X, LogOut } from 'lucide-react';
+import { TrendingUp, Menu, X, LogOut, MessageCircle } from 'lucide-react';
 import { ThemeToggle } from './components/ThemeToggle';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './components/ui/select';
+import { Button } from './components/ui/button';
 import { Toaster } from './components/ui/sonner';
 import SignIn from './components/SignIn';
 import { LandingPage } from './components/LandingPage';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from './components/ui/dialog';
 
 export default function App() {
   const [darkMode, setDarkMode] = useState(() => {
@@ -57,6 +62,7 @@ export default function App() {
   });
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isMIADialogOpen, setIsMIADialogOpen] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('darkMode', JSON.stringify(darkMode));
@@ -195,7 +201,16 @@ export default function App() {
 
               <div className="flex items-center gap-4">
                 {/* Account Filter - Desktop */}
-                <div className="hidden md:block">
+                <div className="hidden md:flex items-center gap-2">
+                  <Button
+                    variant="default"
+                    className="h-9"
+                    title="Market Intelligence Assistant"
+                    onClick={() => setIsMIADialogOpen(true)}
+                  >
+                    <MessageCircle className="h-4 w-4 mr-2" />
+                    Chat
+                  </Button>
                   {activeAccounts.length > 0 && (
                     <Select
                       value={selectedAccountId || 'all'}
@@ -275,13 +290,16 @@ export default function App() {
         {/* Main Content */}
         <main className="container mx-auto px-4 py-6">
           <Tabs defaultValue="dashboard" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-3 lg:grid-cols-5">
-              <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-              <TabsTrigger value="gameplan">Gameplan</TabsTrigger>
-              <TabsTrigger value="accounts">Accounts</TabsTrigger>
-              <TabsTrigger value="entry">New Trade</TabsTrigger>
-              <TabsTrigger value="trades">Trades</TabsTrigger>
-            </TabsList>
+            <div className="w-full overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+              <TabsList className="inline-flex w-full min-w-full sm:grid sm:grid-cols-6 gap-1">
+                <TabsTrigger value="dashboard" className="text-xs sm:text-sm flex-shrink-0">Dashboard</TabsTrigger>
+                <TabsTrigger value="gameplan" className="text-xs sm:text-sm flex-shrink-0">Gameplan</TabsTrigger>
+                <TabsTrigger value="accounts" className="text-xs sm:text-sm flex-shrink-0">Accounts</TabsTrigger>
+                <TabsTrigger value="entry" className="text-xs sm:text-sm flex-shrink-0">New Trade</TabsTrigger>
+                <TabsTrigger value="trades" className="text-xs sm:text-sm flex-shrink-0">Trades</TabsTrigger>
+                <TabsTrigger value="journal" className="text-xs sm:text-sm flex-shrink-0">Journal</TabsTrigger>
+              </TabsList>
+            </div>
 
             <TabsContent value="dashboard" className="space-y-6">
               <Dashboard trades={filteredTrades} />
@@ -314,11 +332,13 @@ export default function App() {
             </TabsContent>
 
             <TabsContent value="entry" className="space-y-6">
-              <TradeEntry 
-                onAddTrade={addTrade} 
-                accounts={accounts}
-                selectedAccountId={selectedAccountId}
-              />
+              <ErrorBoundary>
+                <TradeEntry 
+                  onAddTrade={addTrade} 
+                  accounts={accounts}
+                  selectedAccountId={selectedAccountId}
+                />
+              </ErrorBoundary>
             </TabsContent>
 
             <TabsContent value="trades" className="space-y-6">
@@ -329,8 +349,15 @@ export default function App() {
                 accounts={accounts}
               />
             </TabsContent>
+
+            <TabsContent value="journal" className="space-y-6">
+              <JournalAnalysis />
+            </TabsContent>
           </Tabs>
         </main>
+
+        {/* Floating MIA Window - Like Gemini on Chrome */}
+        <FloatingMIA isOpen={isMIADialogOpen} onClose={() => setIsMIADialogOpen(false)} />
       </div>
     </div>
   );

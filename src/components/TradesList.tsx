@@ -70,6 +70,8 @@ export function TradesList({ trades, onDeleteTrade, onEditTrade, editingTrade, o
       setValue('targetPrice', editingTrade.targetPrice || undefined);
       setValue('notes', editingTrade.notes || '');
       setValue('contractType', editingTrade.contractType || undefined);
+      setValue('strategy', editingTrade.strategy || undefined);
+      setValue('riskAmount', editingTrade.riskAmount || undefined);
       setTags(editingTrade.tags || []);
       setPhotos(editingTrade.photos || []);
     }
@@ -162,6 +164,46 @@ export function TradesList({ trades, onDeleteTrade, onEditTrade, editingTrade, o
 
   const riskRewardRatio = calculateRiskRewardRatio();
 
+  const getContractMultiplier = (symbol: string, contractType?: string): number => {
+    const sym = symbol.toUpperCase();
+    if (sym === 'NQ' || sym.includes('NQ')) {
+      return contractType === 'micro' ? 2 : 20;
+    }
+    if (sym === 'ES' || sym.includes('ES')) {
+      return contractType === 'micro' ? 5 : 50;
+    }
+    return 1;
+  };
+
+  const calculateRiskAmount = (data: TradeFormData): number | undefined => {
+    if (data.riskAmount && data.riskAmount > 0) {
+      return data.riskAmount;
+    }
+    
+    if (data.stopLoss && data.entryPrice) {
+      const entryPrice = Number(data.entryPrice);
+      const stopLoss = Number(data.stopLoss);
+      const quantity = Number(data.quantity);
+      const riskPerUnit = Math.abs(entryPrice - stopLoss);
+      
+      if (data.assetType === 'futures') {
+        const multiplier = getContractMultiplier(data.symbol, data.contractType);
+        return riskPerUnit * quantity * multiplier;
+      }
+      
+      return riskPerUnit * quantity;
+    }
+    
+    return undefined;
+  };
+
+  const calculateRMultiple = (pnl: number | undefined, riskAmount: number | undefined): number | undefined => {
+    if (pnl === undefined || riskAmount === undefined || riskAmount === 0) {
+      return undefined;
+    }
+    return pnl / riskAmount;
+  };
+
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
@@ -185,6 +227,21 @@ export function TradesList({ trades, onDeleteTrade, onEditTrade, editingTrade, o
   const onSubmit = (data: TradeFormData) => {
     if (!editingTrade) return;
 
+    const calculatedPnL = data.exitPrice 
+      ? (() => {
+          const multiplier = data.assetType === 'futures' 
+            ? getContractMultiplier(data.symbol, data.contractType)
+            : 1;
+          const priceDiff = data.position === 'long'
+            ? (Number(data.exitPrice) - Number(data.entryPrice))
+            : (Number(data.entryPrice) - Number(data.exitPrice));
+          return priceDiff * Number(data.quantity) * multiplier;
+        })()
+      : undefined;
+
+    const riskAmount = calculateRiskAmount(data);
+    const rMultiple = calculateRMultiple(calculatedPnL, riskAmount);
+
     const trade: Trade = {
       ...editingTrade,
       date: data.date,
@@ -203,11 +260,10 @@ export function TradesList({ trades, onDeleteTrade, onEditTrade, editingTrade, o
       tags,
       photos: photos.length > 0 ? photos : undefined,
       notes: data.notes,
-      pnl: data.exitPrice 
-        ? (data.position === 'long' 
-          ? (Number(data.exitPrice) - Number(data.entryPrice)) * Number(data.quantity)
-          : (Number(data.entryPrice) - Number(data.exitPrice)) * Number(data.quantity))
-        : undefined
+      pnl: calculatedPnL,
+      strategy: data.strategy || undefined,
+      riskAmount: riskAmount,
+      rMultiple: rMultiple
     };
 
     onUpdateTrade(trade);
@@ -310,6 +366,8 @@ export function TradesList({ trades, onDeleteTrade, onEditTrade, editingTrade, o
                     <TableHead>Exit</TableHead>
                     <TableHead>Duration</TableHead>
                     <TableHead>R:R Ratio</TableHead>
+                    <TableHead>Strategy</TableHead>
+                    <TableHead>R-Multiple</TableHead>
                     <TableHead>P&L</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Photos</TableHead>
@@ -404,6 +462,30 @@ export function TradesList({ trades, onDeleteTrade, onEditTrade, editingTrade, o
                             ) : '-'}
                           </TableCell>
                           <TableCell>
+                            {trade.strategy ? (
+                              <Badge variant="outline" className="text-xs">
+                                {trade.strategy}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground text-sm">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {trade.rMultiple !== undefined ? (
+                              <span className={
+                                trade.rMultiple >= 2 
+                                  ? 'text-green-600 dark:text-green-500' 
+                                  : trade.rMultiple >= 1
+                                  ? 'text-yellow-600 dark:text-yellow-500'
+                                  : trade.rMultiple >= 0
+                                  ? 'text-gray-600 dark:text-gray-500'
+                                  : 'text-red-600 dark:text-red-500'
+                              }>
+                                {trade.rMultiple >= 0 ? '+' : ''}{trade.rMultiple.toFixed(2)}R
+                              </span>
+                            ) : '-'}
+                          </TableCell>
+                          <TableCell>
                             {trade.pnl !== undefined ? (
                               <span className={trade.pnl >= 0 ? 'text-green-600 dark:text-green-500' : 'text-red-600 dark:text-red-500'}>
                                 {formatCurrency(trade.pnl)}
@@ -448,7 +530,7 @@ export function TradesList({ trades, onDeleteTrade, onEditTrade, editingTrade, o
                         {/* Expanded Details Row */}
                         {isExpanded && (
                           <TableRow key={`${trade.id}-details`} className="bg-muted/10">
-                            <TableCell colSpan={15} className="p-6">
+                            <TableCell colSpan={17} className="p-6">
                               <div className="space-y-6">
                                 {/* Trade Breakdown */}
                                 <div>
@@ -613,6 +695,34 @@ export function TradesList({ trades, onDeleteTrade, onEditTrade, editingTrade, o
                               : 'text-red-600 dark:text-red-500'
                           }`}>
                             1:{trade.riskRewardRatio.toFixed(2)}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Strategy */}
+                      {trade.strategy && (
+                        <div className="flex items-center gap-2 pt-2">
+                          <span className="text-xs text-muted-foreground">Strategy:</span>
+                          <Badge variant="outline" className="text-xs">
+                            {trade.strategy}
+                          </Badge>
+                        </div>
+                      )}
+
+                      {/* R-Multiple */}
+                      {trade.rMultiple !== undefined && (
+                        <div className="flex items-center gap-2 pt-2">
+                          <span className="text-xs text-muted-foreground">R-Multiple:</span>
+                          <span className={`tabular-nums text-sm ${
+                            trade.rMultiple >= 2 
+                              ? 'text-green-600 dark:text-green-500' 
+                              : trade.rMultiple >= 1
+                              ? 'text-yellow-600 dark:text-yellow-500'
+                              : trade.rMultiple >= 0
+                              ? 'text-gray-600 dark:text-gray-500'
+                              : 'text-red-600 dark:text-red-500'
+                          }`}>
+                            {trade.rMultiple >= 0 ? '+' : ''}{trade.rMultiple.toFixed(2)}R
                           </span>
                         </div>
                       )}
@@ -928,6 +1038,51 @@ export function TradesList({ trades, onDeleteTrade, onEditTrade, editingTrade, o
                   placeholder="0.00"
                   {...register('targetPrice')}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-strategy">Strategy (Optional)</Label>
+                <Select
+                  value={watch('strategy') || ''}
+                  onValueChange={(value) => setValue('strategy', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select strategy" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="ORB Breakout">ORB Breakout</SelectItem>
+                    <SelectItem value="Demand Zone Retest">Demand Zone Retest</SelectItem>
+                    <SelectItem value="Supply Zone Retest">Supply Zone Retest</SelectItem>
+                    <SelectItem value="Liquidity Grab">Liquidity Grab</SelectItem>
+                    <SelectItem value="Fair Value Gap">Fair Value Gap</SelectItem>
+                    <SelectItem value="Bull Flag">Bull Flag</SelectItem>
+                    <SelectItem value="Bear Flag">Bear Flag</SelectItem>
+                    <SelectItem value="Order Block">Order Block</SelectItem>
+                    <SelectItem value="Break of Structure">Break of Structure</SelectItem>
+                    <SelectItem value="Trend Following">Trend Following</SelectItem>
+                    <SelectItem value="Mean Reversion">Mean Reversion</SelectItem>
+                    <SelectItem value="Scalping">Scalping</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-riskAmount">Risk Amount $ (Optional)</Label>
+                <Input
+                  id="edit-riskAmount"
+                  type="number"
+                  step="0.01"
+                  placeholder="e.g., 50.00"
+                  {...register('riskAmount', {
+                    valueAsNumber: true,
+                    min: { value: 0, message: 'Risk amount must be positive' }
+                  })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Actual dollar amount risked on this trade (used for R-multiple calculation)
+                </p>
               </div>
             </div>
 

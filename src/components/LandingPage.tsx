@@ -1,4 +1,6 @@
-import { TrendingUp, Moon, Sun, BarChart3, FolderOpen, Zap, CheckCircle2, Camera, Calculator, Filter, Copy, Target, Brain, Shield, Rocket, ArrowRight, AlertCircle, FileQuestion, TrendingDown, Twitter, Github, Linkedin } from 'lucide-react';
+import { TrendingUp, Moon, Sun, BarChart3, FolderOpen, Zap, CheckCircle2, Camera, Calculator, Filter, Copy, Target, Brain, Shield, Rocket, ArrowRight, AlertCircle, FileQuestion, TrendingDown, Twitter, Github, Linkedin, Sparkles, BookOpen, LineChart as LineChartIcon, FileSpreadsheet, Activity, DollarSign, Calendar } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Cell, AreaChart, Area } from 'recharts';
+import { Badge } from './ui/badge';
 
 interface LandingPageProps {
   onGetStarted: () => void;
@@ -15,12 +17,9 @@ export function LandingPage({ onGetStarted, darkMode, setDarkMode }: LandingPage
     <div className={darkMode ? 'dark' : ''}>
       <div className="min-h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors">
         
-        {/* Hero Section */}
-        <div className="relative overflow-hidden border-b border-gray-200 dark:border-gray-800">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-cyan-50 to-teal-50 dark:from-blue-950/20 dark:via-cyan-950/20 dark:to-teal-950/20 -z-10" />
-          
-          {/* Navigation */}
-          <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Navigation - Fixed (follows on scroll) */}
+        <nav className="fixed top-0 left-0 right-0 z-50 bg-white/95 dark:bg-gray-950/95 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 shadow-sm">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="bg-gradient-to-r from-blue-600 via-cyan-500 to-teal-500 p-2 rounded-lg">
@@ -29,27 +28,43 @@ export function LandingPage({ onGetStarted, darkMode, setDarkMode }: LandingPage
                 <span className="text-xl bg-gradient-to-r from-blue-600 via-cyan-500 to-teal-500 bg-clip-text text-transparent">TradeJournal Pro</span>
               </div>
               
-              <button
-                onClick={() => setDarkMode(!darkMode)}
-                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                aria-label="Toggle dark mode"
-              >
-                {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={onGetStarted}
+                  className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-blue-600 via-cyan-500 to-teal-500 hover:opacity-90 text-white rounded-lg transition-opacity shadow-md hover:shadow-lg"
+                >
+                  Sign In
+                </button>
+                <button
+                  onClick={() => setDarkMode(!darkMode)}
+                  className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  aria-label="Toggle dark mode"
+                >
+                  {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                </button>
+              </div>
             </div>
-          </nav>
-
+          </div>
+        </nav>
+        
+        {/* Spacer for fixed nav */}
+        <div className="h-20"></div>
+        
+        {/* Hero Section */}
+        <div className="relative overflow-hidden border-b border-gray-200 dark:border-gray-800 -mt-20">
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-cyan-50 to-teal-50 dark:from-blue-950/20 dark:via-cyan-950/20 dark:to-teal-950/20 -z-10" />
+          
           {/* Hero Content */}
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 sm:py-32">
             <div className="text-center">
-              <h1 className="text-5xl sm:text-6xl lg:text-7xl tracking-tight mb-6">
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl tracking-tight mb-6 leading-tight">
                 Turn Trading Data Into
-                <span className="block bg-gradient-to-r from-blue-600 via-cyan-500 to-teal-500 bg-clip-text text-transparent">Trading Mastery</span>
+                <span className="block bg-gradient-to-r from-blue-600 via-cyan-500 to-teal-500 bg-clip-text text-transparent mt-2">Trading Mastery</span>
               </h1>
               
               <p className="text-xl sm:text-2xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto mb-12">
-                The professional trading journal built for prop firm traders who want to track performance, 
-                identify patterns, and consistently improve their results.
+                The professional quant trading journal with AI-powered behavioral analysis, advanced metrics, 
+                and quant-style visualizations built for serious traders.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
@@ -143,31 +158,257 @@ export function LandingPage({ onGetStarted, darkMode, setDarkMode }: LandingPage
           </div>
         </div>
 
+        {/* Journal Analysis Showcase - NEW */}
+        <div className="py-20 sm:py-32 bg-white dark:bg-gray-950">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-12">
+              <h2 className="text-4xl sm:text-5xl mb-6">
+                Journal Analysis That
+                <span className="block bg-gradient-to-r from-purple-600 via-blue-600 to-cyan-600 bg-clip-text text-transparent">Actually Works</span>
+              </h2>
+              <p className="text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
+                Transform your trading journal entries into actionable insights with AI-powered behavioral analysis.
+              </p>
+            </div>
+
+            <div className="grid lg:grid-cols-2 gap-12 items-center">
+              <div className="space-y-6">
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="bg-gradient-to-br from-purple-600 to-blue-600 p-2 rounded-lg">
+                      <Sparkles className="w-5 h-5 text-white" />
+                    </div>
+                    <h3 className="text-xl font-semibold">AI-Powered Detection</h3>
+                  </div>
+                  <p className="text-gray-600 dark:text-gray-400 mb-4">
+                    Gemini AI analyzes your journal entries to automatically detect:
+                  </p>
+                  <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                    <li className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span>Strengths: Patience, level-based trading, discipline</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                      <span>Weaknesses: Premature breakeven, chasing, overtrading</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                      <span>Process Score: 0-100 rating of your trading discipline</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="bg-gradient-to-br from-blue-600 to-cyan-600 p-2 rounded-lg">
+                      <LineChartIcon className="w-5 h-5 text-white" />
+                    </div>
+                    <h3 className="text-xl font-semibold">Quant-Style Visualizations</h3>
+                  </div>
+                  <p className="text-gray-600 dark:text-gray-400 mb-4">
+                    Professional charts used by hedge funds and quant firms:
+                  </p>
+                  <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                    <li className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                      <span>Stacked horizontal bar charts for impact analysis</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-cyan-500 rounded-full"></div>
+                      <span>Process score trend over time</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-teal-500 rounded-full"></div>
+                      <span>Radar charts for multi-dimensional analysis</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-br from-gray-900 to-gray-800 dark:from-gray-800 dark:to-gray-900 p-8 rounded-2xl shadow-2xl">
+                <div className="bg-gray-800 dark:bg-gray-900 rounded-lg p-6">
+                  <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-700">
+                    <h3 className="text-lg text-white">Journal Analysis Dashboard</h3>
+                    <div className="flex gap-2">
+                      <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                      <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                      <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div className="bg-gradient-to-r from-green-900/50 to-cyan-900/50 p-4 rounded-lg border-l-4 border-green-500">
+                      <div className="text-xs text-gray-400 mb-1">Process Score</div>
+                      <div className="text-3xl text-green-400 font-bold">78/100</div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-gray-700/50 p-3 rounded-lg">
+                        <div className="text-xs text-gray-400 mb-1">Top Strength</div>
+                        <div className="text-sm text-green-400">Patience</div>
+                      </div>
+                      <div className="bg-gray-700/50 p-3 rounded-lg">
+                        <div className="text-xs text-gray-400 mb-1">Top Weakness</div>
+                        <div className="text-sm text-red-400">Premature BE</div>
+                      </div>
+                    </div>
+
+                    {/* Process Score Trend Chart */}
+                    <div className="h-32 bg-gray-700/40 rounded-lg p-3 border border-gray-600/30">
+                      <div className="text-xs text-gray-300 mb-2 font-medium">Process Score Trend</div>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={[
+                          { day: 'Mon', score: 65 },
+                          { day: 'Tue', score: 72 },
+                          { day: 'Wed', score: 68 },
+                          { day: 'Thu', score: 75 },
+                          { day: 'Fri', score: 78 }
+                        ]} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#4B5563" opacity={0.3} />
+                          <XAxis 
+                            dataKey="day" 
+                            tick={{ fill: '#D1D5DB', fontSize: 10, fontWeight: 500 }}
+                            stroke="#6B7280"
+                          />
+                          <YAxis 
+                            domain={[60, 80]} 
+                            tick={{ fill: '#D1D5DB', fontSize: 9 }}
+                            stroke="#6B7280"
+                            width={30}
+                          />
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: '#111827', 
+                              border: '1px solid #374151', 
+                              borderRadius: '6px', 
+                              padding: '6px 10px',
+                              color: '#F3F4F6'
+                            }}
+                            labelStyle={{ color: '#D1D5DB', fontSize: '11px', marginBottom: '4px' }}
+                            formatter={(value: number) => [`${value}/100`, 'Score']}
+                          />
+                          <Line 
+                            type="monotone" 
+                            dataKey="score" 
+                            stroke="#10B981" 
+                            strokeWidth={3}
+                            dot={{ fill: '#10B981', r: 4, strokeWidth: 2, stroke: '#065F46' }}
+                            activeDot={{ r: 5 }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    {/* Strengths/Weaknesses Bar Chart */}
+                    <div className="h-40 bg-gray-700/40 rounded-lg p-3 border border-gray-600/30">
+                      <div className="text-xs text-gray-300 mb-2 font-medium">Top Behaviors Impact Share</div>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={[
+                            { name: 'Patience', value: 28, type: 'strength' },
+                            { name: 'Level Thesis', value: 22, type: 'strength' },
+                            { name: 'Premature BE', value: -18, type: 'weakness' },
+                            { name: 'Tight Trail', value: -15, type: 'weakness' }
+                          ]}
+                          layout="vertical"
+                          margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" stroke="#4B5563" opacity={0.3} />
+                          <XAxis 
+                            type="number" 
+                            domain={[-30, 30]} 
+                            tick={{ fill: '#D1D5DB', fontSize: 9 }}
+                            stroke="#6B7280"
+                            label={{ value: '%', position: 'insideRight', fill: '#D1D5DB', fontSize: 9 }}
+                          />
+                          <YAxis 
+                            type="category" 
+                            dataKey="name" 
+                            tick={{ fill: '#D1D5DB', fontSize: 9, fontWeight: 500 }}
+                            width={75}
+                            stroke="#6B7280"
+                          />
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: '#111827', 
+                              border: '1px solid #374151', 
+                              borderRadius: '6px', 
+                              padding: '8px 12px',
+                              color: '#F3F4F6'
+                            }}
+                            labelStyle={{ color: '#D1D5DB', fontSize: '12px', marginBottom: '4px', fontWeight: 500 }}
+                            itemStyle={{ color: '#F3F4F6', fontSize: '12px', fontWeight: 600 }}
+                            cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }}
+                            formatter={(value: number) => [`${Math.abs(value)}%`, 'Impact']}
+                          />
+                          <Bar 
+                            dataKey="value" 
+                            radius={[0, 4, 4, 0]}
+                            label={{ 
+                              position: 'right', 
+                              fill: '#F3F4F6', 
+                              fontSize: 10, 
+                              fontWeight: 600,
+                              formatter: (value: number) => `${Math.abs(value)}%`
+                            }}
+                          >
+                            {[
+                              { name: 'Patience', value: 28, type: 'strength' },
+                              { name: 'Level Thesis', value: 22, type: 'strength' },
+                              { name: 'Premature BE', value: -18, type: 'weakness' },
+                              { name: 'Tight Trail', value: -15, type: 'weakness' }
+                            ].map((entry, index) => (
+                              <Cell 
+                                key={`cell-${index}`} 
+                                fill={entry.type === 'strength' ? '#10B981' : '#EF4444'} 
+                              />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Solution Section */}
         <div id="solution" className="py-20 sm:py-32">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            {/* Centered Heading */}
+            <div className="text-center mb-12">
+              <h2 className="text-4xl sm:text-5xl mb-6 leading-tight">
+                A Professional Trading Journal
+                <span className="block bg-gradient-to-r from-blue-600 via-cyan-500 to-teal-500 bg-clip-text text-transparent">That Actually Works</span>
+              </h2>
+              <p className="text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
+                TradeJournal Pro is built specifically for prop firm traders who need to track 
+                multiple accounts, analyze performance, and maintain discipline across all their trading.
+              </p>
+            </div>
+
             <div className="grid lg:grid-cols-2 gap-16 items-center">
               <div>
-                <h2 className="text-4xl sm:text-5xl mb-6">
-                  A Professional Trading Journal
-                  <span className="block bg-gradient-to-r from-blue-600 via-cyan-500 to-teal-500 bg-clip-text text-transparent">That Actually Works</span>
-                </h2>
-                <p className="text-xl text-gray-600 dark:text-gray-400 mb-8">
-                  TradeJournal Pro is built specifically for prop firm traders who need to track 
-                  multiple accounts, analyze performance, and maintain discipline across all their trading.
-                </p>
 
                 <div className="space-y-4">
                   {[
                     {
                       icon: CheckCircle2,
                       title: "Log Trades in Seconds",
-                      description: "Quick entry form with smart defaults. Track stocks, futures, options, crypto, and forex."
+                      description: "Quick entry form with smart defaults. Track stocks, futures, options, crypto, and forex with quant metrics."
+                    },
+                    {
+                      icon: Sparkles,
+                      title: "AI Behavioral Analysis",
+                      description: "Gemini AI analyzes your journal entries to detect trading behaviors and calculate process scores."
                     },
                     {
                       icon: BarChart3,
-                      title: "Visual Analytics",
-                      description: "See your performance at a glance with charts, win rates, and P&L tracking."
+                      title: "Quant Visualizations",
+                      description: "Professional charts: stacked bars, radar charts, process score trends, and impact share analysis."
                     },
                     {
                       icon: FolderOpen,
@@ -193,43 +434,245 @@ export function LandingPage({ onGetStarted, darkMode, setDarkMode }: LandingPage
                 </div>
               </div>
 
-              <div className="bg-gradient-to-br from-blue-600 via-cyan-500 to-teal-500 p-8 rounded-2xl shadow-2xl">
-                <div className="bg-white dark:bg-gray-900 rounded-lg p-6 shadow-lg">
-                  <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200 dark:border-gray-700">
-                    <h3 className="text-lg">Dashboard</h3>
-                    <div className="flex gap-2">
-                      <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                      <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                      <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <div className="bg-gradient-to-r from-green-50 via-cyan-50 to-teal-50 dark:from-green-900/20 dark:via-cyan-900/20 dark:to-teal-900/20 p-4 rounded-lg border-l-4 border-gradient-to-b from-blue-600 via-cyan-500 to-teal-500">
-                      <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Total P&L</div>
-                      <div className="text-2xl text-green-600 dark:text-green-500">+$12,450</div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
-                        <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Win Rate</div>
-                        <div className="text-xl">68%</div>
-                      </div>
-                      <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
-                        <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Trades</div>
-                        <div className="text-xl">247</div>
+              <div className="bg-white dark:bg-gray-900 rounded-xl p-6 border border-gray-200 dark:border-gray-800 shadow-xl">
+                <div className="space-y-4">
+                  {/* Key Metrics Grid - Matching actual dashboard style */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Total P&L Card */}
+                    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow group">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Total P&L</p>
+                          <p className="text-xl font-bold tabular-nums text-green-600 dark:text-green-500">+$47,832</p>
+                        </div>
+                        <DollarSign className="h-6 w-6 text-gray-400 dark:text-gray-500" />
                       </div>
                     </div>
 
-                    <div className="h-32 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-end justify-around p-4">
-                      <div className="w-8 bg-gradient-to-t from-blue-600 via-cyan-500 to-teal-500 rounded-t" style={{ height: '60%' }}></div>
-                      <div className="w-8 bg-gradient-to-t from-blue-600 via-cyan-500 to-teal-500 rounded-t" style={{ height: '80%' }}></div>
-                      <div className="w-8 bg-gradient-to-t from-blue-600 via-cyan-500 to-teal-500 rounded-t" style={{ height: '45%' }}></div>
-                      <div className="w-8 bg-gradient-to-t from-blue-600 via-cyan-500 to-teal-500 rounded-t" style={{ height: '90%' }}></div>
-                      <div className="w-8 bg-gradient-to-t from-blue-600 via-cyan-500 to-teal-500 rounded-t" style={{ height: '70%' }}></div>
+                    {/* Win Rate Card */}
+                    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow group">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Win Rate</p>
+                          <p className="text-xl font-bold tabular-nums">72.3%</p>
+                        </div>
+                        <Target className="h-6 w-6 text-gray-400 dark:text-gray-500" />
+                      </div>
+                    </div>
+
+                    {/* Avg R:R Ratio Card */}
+                    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow group">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Avg R:R Ratio</p>
+                          <p className="text-xl font-bold tabular-nums text-green-600 dark:text-green-500">1:2.47</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">247 trades</p>
+                        </div>
+                        <TrendingUp className="h-6 w-6 text-gray-400 dark:text-gray-500" />
+                      </div>
+                    </div>
+
+                    {/* Total Trades Card */}
+                    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow group">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Total Trades</p>
+                          <p className="text-xl font-bold tabular-nums">247</p>
+                          <div className="flex gap-2 mt-1">
+                            <Badge variant="outline" className="text-xs">12 open</Badge>
+                            <Badge variant="outline" className="text-xs">235 closed</Badge>
+                          </div>
+                        </div>
+                        <BarChart3 className="h-6 w-6 text-gray-400 dark:text-gray-500" />
+                      </div>
+                    </div>
+
+                    {/* Profit Factor Card */}
+                    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow group">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Profit Factor</p>
+                          <p className="text-xl font-bold tabular-nums">2.34</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Avg Win: $194</p>
+                        </div>
+                        <Calendar className="h-6 w-6 text-gray-400 dark:text-gray-500" />
+                      </div>
+                    </div>
+
+                    {/* Expectancy Card */}
+                    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow group">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Expectancy</p>
+                          <p className="text-xl font-bold tabular-nums text-green-600 dark:text-green-500">$194</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Per trade</p>
+                        </div>
+                        <Activity className="h-6 w-6 text-gray-400 dark:text-gray-500" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Charts Section */}
+                  <div className="grid grid-cols-1 gap-4">
+                    {/* Cumulative P&L Chart */}
+                    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Cumulative P&L</p>
+                        <LineChartIcon className="h-4 w-4 text-gray-400" />
+                      </div>
+                      <ResponsiveContainer width="100%" height={120}>
+                        <AreaChart
+                          data={[
+                            { date: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).getTime(), cumulative: 35000 },
+                            { date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).getTime(), cumulative: 36500 },
+                            { date: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).getTime(), cumulative: 37200 },
+                            { date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).getTime(), cumulative: 39800 },
+                            { date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).getTime(), cumulative: 42500 },
+                            { date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).getTime(), cumulative: 45200 },
+                            { date: new Date().getTime(), cumulative: 47832 },
+                          ]}
+                          margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
+                        >
+                          <defs>
+                            <linearGradient id="colorPnLPreview" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                              <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                            </linearGradient>
+                          </defs>
+                          <Area
+                            type="monotone"
+                            dataKey="cumulative"
+                            stroke="#3b82f6"
+                            strokeWidth={2}
+                            fill="url(#colorPnLPreview)"
+                            dot={false}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    {/* Journal Analysis Preview */}
+                    <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Sparkles className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">AI Process Score</p>
+                        <span className="ml-auto text-sm font-bold text-purple-600 dark:text-purple-400">84/100</span>
+                      </div>
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-2">
+                        <div className="bg-gradient-to-r from-purple-600 to-blue-600 h-2 rounded-full" style={{ width: '84%' }}></div>
+                      </div>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">Strong: Patience, Risk Management</p>
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* AI & Quant Features Section - NEW */}
+        <div className="py-20 sm:py-32 bg-gradient-to-br from-purple-50 via-blue-50 to-cyan-50 dark:from-purple-950/20 dark:via-blue-950/20 dark:to-cyan-950/20">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-16">
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 via-blue-600 to-cyan-600 text-white rounded-full text-sm font-medium mb-4">
+                <Sparkles className="w-4 h-4" />
+                Powered by Gemini AI
+              </div>
+              <h2 className="text-4xl sm:text-5xl mb-6">
+                AI-Powered Behavioral Analysis
+                <span className="block bg-gradient-to-r from-purple-600 via-blue-600 to-cyan-600 bg-clip-text text-transparent">For Quant Traders</span>
+              </h2>
+              <p className="text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
+                Advanced journal analysis with AI, quant metrics, and professional-grade visualizations.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mb-16">
+              {/* AI Journal Analysis */}
+              <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl border-2 border-purple-200 dark:border-purple-800 shadow-xl">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="bg-gradient-to-br from-purple-600 to-blue-600 p-3 rounded-lg">
+                    <Sparkles className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold">Gemini AI Analysis</h3>
+                    <p className="text-sm text-gray-500">Semantic behavioral detection</p>
+                  </div>
+                </div>
+                <ul className="space-y-3 text-gray-600 dark:text-gray-400">
+                  <li className="flex items-start gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
+                    <span>AI detects trading behaviors from free-form journal entries</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
+                    <span>Process Score (0-100) tracks your trading discipline</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
+                    <span>Identifies strengths & weaknesses automatically</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
+                    <span>Generates personalized daily plans based on patterns</span>
+                  </li>
+                </ul>
+              </div>
+
+              {/* Quant Visualizations */}
+              <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl border-2 border-blue-200 dark:border-blue-800 shadow-xl">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="bg-gradient-to-br from-blue-600 to-cyan-600 p-3 rounded-lg">
+                    <LineChartIcon className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold">Quant-Style Charts</h3>
+                    <p className="text-sm text-gray-500">Hedge fund-grade visualizations</p>
+                  </div>
+                </div>
+                <ul className="space-y-3 text-gray-600 dark:text-gray-400">
+                  <li className="flex items-start gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
+                    <span>Stacked horizontal bar charts for strengths/weaknesses</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
+                    <span>Process score trend analysis over time</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
+                    <span>Radar charts for multi-dimensional analysis</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
+                    <span>Impact share percentages for behavioral patterns</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Quant Metrics Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700">
+                <div className="flex items-center gap-3 mb-3">
+                  <Activity className="w-5 h-5 text-blue-600 dark:text-cyan-500" />
+                  <h4 className="font-semibold">R-Multiple Tracking</h4>
+                </div>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Calculate and track R-multiples (PnL / Risk) for every trade automatically</p>
+              </div>
+              <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700">
+                <div className="flex items-center gap-3 mb-3">
+                  <TrendingUp className="w-5 h-5 text-green-600 dark:text-green-500" />
+                  <h4 className="font-semibold">Expectancy & Drawdown</h4>
+                </div>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Professional metrics: Expectancy, Maximum Drawdown, Profit Factor, Win Rate</p>
+              </div>
+              <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700">
+                <div className="flex items-center gap-3 mb-3">
+                  <FileSpreadsheet className="w-5 h-5 text-purple-600 dark:text-purple-500" />
+                  <h4 className="font-semibold">CSV Import</h4>
+                </div>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Advanced CSV parsing with contract multipliers, timestamps, and quant metrics</p>
               </div>
             </div>
           </div>
@@ -251,14 +694,19 @@ export function LandingPage({ onGetStarted, darkMode, setDarkMode }: LandingPage
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {[
                 {
+                  icon: BookOpen,
+                  title: "Journal Entry Templates",
+                  description: "Pre-formatted templates for daily journals, trade analysis, weekly reviews, and premarket planning. Optimized for behavioral analysis."
+                },
+                {
                   icon: Calculator,
                   title: "Automatic P&L Calculation",
-                  description: "Enter your entry and exit prices, and we calculate profit/loss automatically including futures contract multipliers."
+                  description: "Enter your entry and exit prices, and we calculate profit/loss automatically including futures contract multipliers (NQ, MNQ, ES, MES)."
                 },
                 {
                   icon: Filter,
                   title: "Advanced Filtering & Sorting",
-                  description: "Filter trades by date, symbol, asset type, or account. Sort by any column to find patterns quickly."
+                  description: "Filter trades by date, symbol, asset type, strategy, or account. Sort by any column to find patterns quickly."
                 },
                 {
                   icon: Camera,
@@ -267,13 +715,23 @@ export function LandingPage({ onGetStarted, darkMode, setDarkMode }: LandingPage
                 },
                 {
                   icon: Target,
-                  title: "Risk/Reward Tracking",
-                  description: "Set and monitor your risk-reward ratios to ensure you're taking smart, calculated trades."
+                  title: "Risk/Reward & R-Multiple",
+                  description: "Set and monitor your risk-reward ratios and R-multiples. Track actual risk amount per trade for precise analysis."
                 },
                 {
                   icon: Copy,
                   title: "Copy to All Accounts",
                   description: "Running the same strategy across multiple prop firms? Duplicate any trade to all accounts instantly."
+                },
+                {
+                  icon: BarChart3,
+                  title: "Quant Dashboard Metrics",
+                  description: "Expectancy, Maximum Drawdown, Profit Factor, Average R:R, Trade Distribution Histogram, and Cumulative P&L charts."
+                },
+                {
+                  icon: FileSpreadsheet,
+                  title: "Smart CSV Import",
+                  description: "Import trades from CSV with automatic contract detection, timestamp parsing, session detection, and quant metric calculation."
                 },
                 {
                   icon: Moon,

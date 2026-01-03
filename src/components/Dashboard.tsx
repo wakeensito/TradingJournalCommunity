@@ -1,10 +1,11 @@
 import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
-import { TrendingUp, TrendingDown, DollarSign, Target, Calendar, BarChart3, Flame, Clock } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, BarChart, Bar } from 'recharts';
+import { TrendingUp, TrendingDown, DollarSign, Target, Calendar, BarChart3, Flame, Clock, TrendingDown as TrendingDownIcon, Activity } from 'lucide-react';
 import { Trade } from '../types/trade';
 import { CalendarView } from './CalendarView';
+import { JournalAnalysisCard } from './JournalAnalysisCard';
 
 interface DashboardProps {
   trades: Trade[];
@@ -27,6 +28,11 @@ export function Dashboard({ trades }: DashboardProps) {
       : 0;
 
     const profitFactor = avgLoss > 0 ? avgWin / avgLoss : 0;
+
+    // Calculate Expectancy: (Win% × Avg Win) - (Loss% × Avg Loss)
+    const winPercentage = closedTrades.length > 0 ? winningTrades.length / closedTrades.length : 0;
+    const lossPercentage = closedTrades.length > 0 ? losingTrades.length / closedTrades.length : 0;
+    const expectancy = (winPercentage * avgWin) - (lossPercentage * avgLoss);
 
     // Calculate average risk-reward ratio
     const tradesWithRR = trades.filter(trade => trade.riskRewardRatio && trade.riskRewardRatio > 0);
@@ -103,6 +109,7 @@ export function Dashboard({ trades }: DashboardProps) {
       avgWin,
       avgLoss,
       profitFactor,
+      expectancy,
       avgRiskReward,
       tradesWithRR: tradesWithRR.length,
       avgDuration: avgDurationFormatted,
@@ -118,14 +125,77 @@ export function Dashboard({ trades }: DashboardProps) {
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     
     let cumulative = 0;
+    let peak = 0;
+    let maxDrawdown = 0;
+    
     return closedTrades.map(trade => {
       cumulative += trade.pnl || 0;
+      if (cumulative > peak) {
+        peak = cumulative;
+      }
+      const drawdown = peak - cumulative;
+      if (drawdown > maxDrawdown) {
+        maxDrawdown = drawdown;
+      }
       return {
         date: trade.date,
         cumulative,
-        pnl: trade.pnl || 0
+        pnl: trade.pnl || 0,
+        peak,
+        drawdown
       };
     });
+  }, [trades]);
+
+  // Calculate Maximum Drawdown
+  const maxDrawdown = useMemo(() => {
+    if (cumulativePnL.length === 0) return { value: 0, percentage: 0 };
+    
+    let peak = 0;
+    let maxDD = 0;
+    let maxDDPercentage = 0;
+    
+    cumulativePnL.forEach(point => {
+      if (point.cumulative > peak) {
+        peak = point.cumulative;
+      }
+      const drawdown = peak - point.cumulative;
+      if (drawdown > maxDD) {
+        maxDD = drawdown;
+        maxDDPercentage = peak > 0 ? (drawdown / peak) * 100 : 0;
+      }
+    });
+    
+    return { value: maxDD, percentage: maxDDPercentage };
+  }, [cumulativePnL]);
+
+  // Calculate Trade Distribution Histogram
+  const tradeDistribution = useMemo(() => {
+    const closedTrades = trades.filter(trade => trade.status === 'closed' && trade.pnl !== undefined);
+    if (closedTrades.length === 0) return [];
+    
+    const pnls = closedTrades.map(t => t.pnl || 0);
+    const minPnL = Math.min(...pnls);
+    const maxPnL = Math.max(...pnls);
+    const range = maxPnL - minPnL;
+    const bins = 20;
+    const binSize = range / bins;
+    
+    const histogram: { range: string; count: number; pnl: number }[] = [];
+    
+    for (let i = 0; i < bins; i++) {
+      const binStart = minPnL + (i * binSize);
+      const binEnd = binStart + binSize;
+      const count = pnls.filter(pnl => pnl >= binStart && (i === bins - 1 ? pnl <= binEnd : pnl < binEnd)).length;
+      
+      histogram.push({
+        range: `$${binStart.toFixed(0)} - $${binEnd.toFixed(0)}`,
+        count,
+        pnl: (binStart + binEnd) / 2
+      });
+    }
+    
+    return histogram;
   }, [trades]);
 
   const symbolPerformance = useMemo(() => {
@@ -178,7 +248,7 @@ export function Dashboard({ trades }: DashboardProps) {
   return (
     <div className="space-y-6">
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="hover-glow group">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -288,6 +358,40 @@ export function Dashboard({ trades }: DashboardProps) {
                   ? 'text-red-500' 
                   : 'text-muted-foreground'
               }`} />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="hover-glow group">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Expectancy</p>
+                <p className={`text-2xl tabular-nums transition-transform group-hover:scale-110 ${stats.expectancy >= 0 ? 'text-green-600 dark:text-green-500' : 'text-red-600 dark:text-red-500'}`}>
+                  {formatCurrency(stats.expectancy)}
+                </p>
+                <p className="text-xs text-muted-foreground tabular-nums">
+                  Per trade expected value
+                </p>
+              </div>
+              <Activity className="h-8 w-8 text-muted-foreground transition-transform group-hover:scale-110 group-hover:rotate-12" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="hover-glow group">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Max Drawdown</p>
+                <p className={`text-2xl tabular-nums transition-transform group-hover:scale-110 ${maxDrawdown.value === 0 ? 'text-gray-600 dark:text-gray-500' : 'text-red-600 dark:text-red-500'}`}>
+                  {formatCurrency(maxDrawdown.value)}
+                </p>
+                <p className="text-xs text-muted-foreground tabular-nums">
+                  {maxDrawdown.percentage > 0 ? `${maxDrawdown.percentage.toFixed(1)}%` : 'No drawdown'}
+                </p>
+              </div>
+              <TrendingDownIcon className="h-8 w-8 text-muted-foreground transition-transform group-hover:scale-110 group-hover:rotate-12" />
             </div>
           </CardContent>
         </Card>
@@ -414,6 +518,61 @@ export function Dashboard({ trades }: DashboardProps) {
         </Card>
 
       </div>
+
+      {/* Trade Distribution Histogram */}
+      {tradeDistribution.length > 0 && (
+        <Card className="hover-glow">
+          <CardHeader>
+            <CardTitle>Trade Distribution</CardTitle>
+            <p className="text-sm text-muted-foreground">P&L distribution across all closed trades</p>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={tradeDistribution}>
+                <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.1} />
+                <XAxis 
+                  dataKey="range"
+                  stroke="currentColor"
+                  opacity={0.5}
+                  tick={{ fontSize: 10 }}
+                  angle={-45}
+                  textAnchor="end"
+                  height={80}
+                />
+                <YAxis 
+                  stroke="currentColor"
+                  opacity={0.5}
+                  tick={{ fontSize: 12 }}
+                />
+                <Tooltip 
+                  formatter={(value: number) => [value, 'Trades']}
+                  contentStyle={{
+                    backgroundColor: 'var(--card)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '8px',
+                    backdropFilter: 'blur(12px)'
+                  }}
+                />
+                <Bar 
+                  dataKey="count" 
+                  fill="#3b82f6"
+                  radius={[4, 4, 0, 0]}
+                >
+                  {tradeDistribution.map((entry, index) => (
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={entry.pnl >= 0 ? '#22c55e' : '#ef4444'} 
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Journal Analysis Card */}
+      <JournalAnalysisCard />
 
       {/* Calendar View */}
       <CalendarView trades={trades} />
