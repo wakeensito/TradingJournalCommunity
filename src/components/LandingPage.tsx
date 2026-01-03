@@ -162,67 +162,106 @@ export function LandingPage({ onGetStarted, darkMode, setDarkMode }: LandingPage
         <div className="py-20 sm:py-32 bg-white dark:bg-gray-950">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-12">
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 via-cyan-500 to-teal-500 text-white rounded-full text-sm font-medium mb-4">
+                <Sparkles className="w-4 h-4" />
+                Powered by Gemini AI
+              </div>
               <h2 className="text-4xl sm:text-5xl mb-6">
-                Journal Analysis That
-                <span className="block bg-gradient-to-r from-purple-600 via-blue-600 to-cyan-600 bg-clip-text text-transparent">Actually Works</span>
+                AI-Powered Behavioral Analysis
+                <span className="block bg-gradient-to-r from-blue-600 via-cyan-500 to-teal-500 bg-clip-text text-transparent">For Quant Traders</span>
               </h2>
               <p className="text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
-                Transform your trading journal entries into actionable insights with AI-powered behavioral analysis.
+                Transform your trading journal entries into actionable insights with AI-powered behavioral analysis, quant metrics, and professional-grade visualizations.
               </p>
             </div>
 
             <div className="grid lg:grid-cols-2 gap-12 items-center">
               <div className="space-y-6">
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="bg-gradient-to-br from-purple-600 to-blue-600 p-2 rounded-lg">
-                      <Sparkles className="w-5 h-5 text-white" />
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm relative overflow-hidden group hover:shadow-md transition-shadow">
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-600/5 via-cyan-500/5 to-teal-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                  <div className="relative">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="bg-gradient-to-r from-blue-600 via-cyan-500 to-teal-500 p-2 rounded-lg shadow-sm">
+                        <Sparkles className="w-5 h-5 text-white" />
+                      </div>
+                      <h3 className="text-xl font-semibold">AI-Powered Detection</h3>
                     </div>
-                    <h3 className="text-xl font-semibold">AI-Powered Detection</h3>
+                    <p className="text-gray-600 dark:text-gray-400 mb-4">
+                      Gemini AI analyzes your journal entries to automatically detect:
+                    </p>
+                    <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                      <li className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span>Strengths: Patience, level-based trading, discipline</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                        <span>Weaknesses: Premature breakeven, chasing, overtrading</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                        <span>Process Score: 0-100 rating of your trading discipline</span>
+                      </li>
+                    </ul>
                   </div>
-                  <p className="text-gray-600 dark:text-gray-400 mb-4">
-                    Gemini AI analyzes your journal entries to automatically detect:
-                  </p>
-                  <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                    <li className="flex items-center gap-2">
-                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                      <span>Strengths: Patience, level-based trading, discipline</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                      <span>Weaknesses: Premature breakeven, chasing, overtrading</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
-                      <span>Process Score: 0-100 rating of your trading discipline</span>
-                    </li>
-                  </ul>
                 </div>
 
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="bg-gradient-to-br from-blue-600 to-cyan-600 p-2 rounded-lg">
-                      <LineChartIcon className="w-5 h-5 text-white" />
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm relative overflow-hidden group hover:shadow-md transition-shadow">
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-600/5 via-cyan-500/5 to-teal-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                  <div className="relative">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="bg-gradient-to-r from-blue-600 via-cyan-500 to-teal-500 p-2 rounded-lg shadow-sm">
+                        <LineChartIcon className="w-5 h-5 text-white" />
+                      </div>
+                      <h3 className="text-xl font-semibold">Quant-Style Visualizations</h3>
                     </div>
-                    <h3 className="text-xl font-semibold">Quant-Style Visualizations</h3>
+                    <p className="text-gray-600 dark:text-gray-400 mb-4">
+                      Professional charts used by hedge funds and quant firms:
+                    </p>
+                    <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                      <li className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: '#2563eb' }}></div>
+                        <span>Stacked horizontal bar charts for impact analysis</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: '#06b6d4' }}></div>
+                        <span>Process score trend over time</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: '#14b8a6' }}></div>
+                        <span>Radar charts for multi-dimensional analysis</span>
+                      </li>
+                    </ul>
                   </div>
-                  <p className="text-gray-600 dark:text-gray-400 mb-4">
-                    Professional charts used by hedge funds and quant firms:
-                  </p>
-                  <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                    <li className="flex items-center gap-2">
-                      <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
-                      <span>Stacked horizontal bar charts for impact analysis</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <div className="w-2 h-2 bg-cyan-500 rounded-full"></div>
-                      <span>Process score trend over time</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <div className="w-2 h-2 bg-teal-500 rounded-full"></div>
-                      <span>Radar charts for multi-dimensional analysis</span>
-                    </li>
-                  </ul>
+                </div>
+
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm relative overflow-hidden group hover:shadow-md transition-shadow">
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-600/5 via-cyan-500/5 to-teal-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                  <div className="relative">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="bg-gradient-to-r from-blue-600 via-cyan-500 to-teal-500 p-2 rounded-lg shadow-sm">
+                        <Brain className="w-5 h-5 text-white" />
+                      </div>
+                      <h3 className="text-xl font-semibold">Market Intelligence Assistant</h3>
+                    </div>
+                    <p className="text-gray-600 dark:text-gray-400 mb-4">
+                      Your AI trading companion powered by Gemini:
+                    </p>
+                    <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                      <li className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: '#2563eb' }}></div>
+                        <span>Real-time market data and analysis</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: '#06b6d4' }}></div>
+                        <span>Floating, draggable chat interface</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: '#14b8a6' }}></div>
+                        <span>Get instant answers to trading questions</span>
+                      </li>
+                    </ul>
+                  </div>
                 </div>
               </div>
 
@@ -312,7 +351,7 @@ export function LandingPage({ onGetStarted, darkMode, setDarkMode }: LandingPage
                             { name: 'Tight Trail', value: -15, type: 'weakness' }
                           ]}
                           layout="vertical"
-                          margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
+                          margin={{ top: 5, right: 45, left: 0, bottom: 5 }}
                         >
                           <CartesianGrid strokeDasharray="3 3" stroke="#4B5563" opacity={0.3} />
                           <XAxis 
@@ -366,6 +405,54 @@ export function LandingPage({ onGetStarted, darkMode, setDarkMode }: LandingPage
                             ))}
                           </Bar>
                         </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    {/* Behavioral Profile Radar Chart */}
+                    <div className="h-52 bg-gray-700/40 rounded-lg p-3 border border-gray-600/30">
+                      <div className="text-xs text-gray-300 mb-2 font-medium">Behavioral Profile Radar</div>
+                      <ResponsiveContainer width="100%" height={180}>
+                        <RadarChart
+                          data={[
+                            { category: 'Patience', value: 88, fullMark: 100 },
+                            { category: 'Level Thesis', value: 82, fullMark: 100 },
+                            { category: 'Risk Mgmt', value: 75, fullMark: 100 },
+                            { category: 'Execution', value: 70, fullMark: 100 },
+                            { category: 'Trade Mgmt', value: 72, fullMark: 100 },
+                            { category: 'Discipline', value: 78, fullMark: 100 }
+                          ]}
+                          margin={{ top: 15, right: 15, bottom: 15, left: 15 }}
+                        >
+                          <PolarGrid stroke="#4B5563" opacity={0.3} />
+                          <PolarAngleAxis 
+                            dataKey="category" 
+                            tick={{ fill: '#D1D5DB', fontSize: 9, fontWeight: 500 }}
+                          />
+                          <PolarRadiusAxis 
+                            angle={90} 
+                            domain={[0, 100]} 
+                            tick={{ fill: '#9CA3AF', fontSize: 8 }}
+                            tickCount={4}
+                          />
+                          <Radar
+                            name="Behavioral Profile"
+                            dataKey="value"
+                            stroke="#3b82f6"
+                            fill="#3b82f6"
+                            fillOpacity={0.3}
+                            strokeWidth={2}
+                          />
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: '#111827', 
+                              border: '1px solid #374151', 
+                              borderRadius: '6px', 
+                              padding: '6px 10px',
+                              color: '#F3F4F6'
+                            }}
+                            formatter={(value: number) => [`${value}%`, 'Score']}
+                          />
+                        </RadarChart>
                       </ResponsiveContainer>
                     </div>
                   </div>
@@ -475,15 +562,15 @@ export function LandingPage({ onGetStarted, darkMode, setDarkMode }: LandingPage
                     {/* Total Trades Card */}
                     <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow group">
                       <div className="flex items-center justify-between">
-                        <div>
+                        <div className="flex-1 min-w-0">
                           <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Total Trades</p>
                           <p className="text-xl font-bold tabular-nums">247</p>
-                          <div className="flex gap-2 mt-1">
-                            <Badge variant="outline" className="text-xs">12 open</Badge>
-                            <Badge variant="outline" className="text-xs">235 closed</Badge>
+                          <div className="flex flex-wrap gap-1.5 mt-1">
+                            <Badge variant="outline" className="text-xs whitespace-nowrap">12 open</Badge>
+                            <Badge variant="outline" className="text-xs whitespace-nowrap">235 closed</Badge>
                           </div>
                         </div>
-                        <BarChart3 className="h-6 w-6 text-gray-400 dark:text-gray-500" />
+                        <BarChart3 className="h-6 w-6 text-gray-400 dark:text-gray-500 flex-shrink-0 ml-2" />
                       </div>
                     </div>
 
@@ -552,14 +639,14 @@ export function LandingPage({ onGetStarted, darkMode, setDarkMode }: LandingPage
                     </div>
 
                     {/* Journal Analysis Preview */}
-                    <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
+                    <div className="bg-gradient-to-r from-blue-50 via-cyan-50 to-teal-50 dark:from-blue-900/20 dark:via-cyan-900/20 dark:to-teal-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                       <div className="flex items-center gap-2 mb-3">
-                        <Sparkles className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                        <Sparkles className="h-4 w-4 text-blue-600 dark:text-cyan-400" />
                         <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">AI Process Score</p>
-                        <span className="ml-auto text-sm font-bold text-purple-600 dark:text-purple-400">84/100</span>
+                        <span className="ml-auto text-sm font-bold bg-gradient-to-r from-blue-600 via-cyan-500 to-teal-500 bg-clip-text text-transparent">84/100</span>
                       </div>
                       <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-2">
-                        <div className="bg-gradient-to-r from-purple-600 to-blue-600 h-2 rounded-full" style={{ width: '84%' }}></div>
+                        <div className="bg-gradient-to-r from-blue-600 via-cyan-500 to-teal-500 h-2 rounded-full" style={{ width: '84%' }}></div>
                       </div>
                       <p className="text-xs text-gray-600 dark:text-gray-400">Strong: Patience, Risk Management</p>
                     </div>
@@ -571,113 +658,6 @@ export function LandingPage({ onGetStarted, darkMode, setDarkMode }: LandingPage
         </div>
 
         {/* AI & Quant Features Section - NEW */}
-        <div className="py-20 sm:py-32 bg-gradient-to-br from-purple-50 via-blue-50 to-cyan-50 dark:from-purple-950/20 dark:via-blue-950/20 dark:to-cyan-950/20">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-16">
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 via-blue-600 to-cyan-600 text-white rounded-full text-sm font-medium mb-4">
-                <Sparkles className="w-4 h-4" />
-                Powered by Gemini AI
-              </div>
-              <h2 className="text-4xl sm:text-5xl mb-6">
-                AI-Powered Behavioral Analysis
-                <span className="block bg-gradient-to-r from-purple-600 via-blue-600 to-cyan-600 bg-clip-text text-transparent">For Quant Traders</span>
-              </h2>
-              <p className="text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
-                Advanced journal analysis with AI, quant metrics, and professional-grade visualizations.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mb-16">
-              {/* AI Journal Analysis */}
-              <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl border-2 border-purple-200 dark:border-purple-800 shadow-xl">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="bg-gradient-to-br from-purple-600 to-blue-600 p-3 rounded-lg">
-                    <Sparkles className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-2xl font-bold">Gemini AI Analysis</h3>
-                    <p className="text-sm text-gray-500">Semantic behavioral detection</p>
-                  </div>
-                </div>
-                <ul className="space-y-3 text-gray-600 dark:text-gray-400">
-                  <li className="flex items-start gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
-                    <span>AI detects trading behaviors from free-form journal entries</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
-                    <span>Process Score (0-100) tracks your trading discipline</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
-                    <span>Identifies strengths & weaknesses automatically</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
-                    <span>Generates personalized daily plans based on patterns</span>
-                  </li>
-                </ul>
-              </div>
-
-              {/* Quant Visualizations */}
-              <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl border-2 border-blue-200 dark:border-blue-800 shadow-xl">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="bg-gradient-to-br from-blue-600 to-cyan-600 p-3 rounded-lg">
-                    <LineChartIcon className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-2xl font-bold">Quant-Style Charts</h3>
-                    <p className="text-sm text-gray-500">Hedge fund-grade visualizations</p>
-                  </div>
-                </div>
-                <ul className="space-y-3 text-gray-600 dark:text-gray-400">
-                  <li className="flex items-start gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
-                    <span>Stacked horizontal bar charts for strengths/weaknesses</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
-                    <span>Process score trend analysis over time</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
-                    <span>Radar charts for multi-dimensional analysis</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
-                    <span>Impact share percentages for behavioral patterns</span>
-                  </li>
-                </ul>
-              </div>
-            </div>
-
-            {/* Quant Metrics Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700">
-                <div className="flex items-center gap-3 mb-3">
-                  <Activity className="w-5 h-5 text-blue-600 dark:text-cyan-500" />
-                  <h4 className="font-semibold">R-Multiple Tracking</h4>
-                </div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Calculate and track R-multiples (PnL / Risk) for every trade automatically</p>
-              </div>
-              <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700">
-                <div className="flex items-center gap-3 mb-3">
-                  <TrendingUp className="w-5 h-5 text-green-600 dark:text-green-500" />
-                  <h4 className="font-semibold">Expectancy & Drawdown</h4>
-                </div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Professional metrics: Expectancy, Maximum Drawdown, Profit Factor, Win Rate</p>
-              </div>
-              <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700">
-                <div className="flex items-center gap-3 mb-3">
-                  <FileSpreadsheet className="w-5 h-5 text-purple-600 dark:text-purple-500" />
-                  <h4 className="font-semibold">CSV Import</h4>
-                </div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Advanced CSV parsing with contract multipliers, timestamps, and quant metrics</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* Features Section */}
         <div className="py-20 sm:py-32 bg-gray-50 dark:bg-gray-900/50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
