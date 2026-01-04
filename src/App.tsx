@@ -49,6 +49,7 @@ export default function App() {
       id: '1',
       name: 'TakeProfit Trader - Main',
       propFirm: 'TakeProfit Trader',
+      accountType: 'eval' as const,
       accountSize: 50000,
       startDate: new Date().toISOString().split('T')[0],
       status: 'active' as const,
@@ -351,7 +352,9 @@ export default function App() {
             </TabsContent>
 
             <TabsContent value="journal" className="space-y-6">
-              <JournalAnalysis />
+              <ErrorBoundary>
+                <JournalAnalysis />
+              </ErrorBoundary>
             </TabsContent>
           </Tabs>
         </main>

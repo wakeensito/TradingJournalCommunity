@@ -1,28 +1,50 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
 import { Badge } from './ui/badge';
 import { Checkbox } from './ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ComposedChart } from 'recharts';
-import { Upload, TrendingUp, TrendingDown, Target, AlertCircle, CheckCircle2, Sparkles, Loader2 } from 'lucide-react';
+import { Upload, TrendingUp, TrendingDown, Target, AlertCircle, CheckCircle2, Sparkles, Loader2, FileText } from 'lucide-react';
 import { parseDiscordJournal, convertToJournalEntries } from '../services/journalParser';
 import { analyzeJournalEntries } from '../services/behavioralAnalysis';
 import { JournalEntry } from '../types/journal';
 import { toast } from 'sonner';
+import { JOURNAL_TEMPLATES, formatTemplate, JournalTemplate } from '../services/journalTemplates';
+
+const STORAGE_KEY = 'tradingJournal_entries';
 
 export function JournalAnalysis() {
   const [journalText, setJournalText] = useState('');
   const [analyzedData, setAnalyzedData] = useState<Awaited<ReturnType<typeof analyzeJournalEntries>> | null>(null);
   const [useGemini, setUseGemini] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+
   const hasGeminiKey = !!import.meta.env.VITE_GEMINI_API_KEY;
+
+  const handleTemplateSelect = (templateId: string) => {
+    try {
+      if (templateId === 'none') {
+        setSelectedTemplate('');
+        return;
+      }
+      const template = JOURNAL_TEMPLATES?.find(t => t.id === templateId);
+      if (template) {
+        const formatted = formatTemplate(template.template);
+        setJournalText(formatted);
+        setSelectedTemplate(templateId);
+      }
+    } catch (error) {
+      console.error('Error selecting template:', error);
+    }
+  };
 
   const handleAnalyze = async () => {
     if (!journalText.trim()) {
-      toast.error('Please paste your journal entries');
+      toast.error('Please enter your journal entry');
       return;
     }
 
@@ -30,13 +52,38 @@ export function JournalAnalysis() {
     try {
       const parsed = parseDiscordJournal(journalText);
       const entries = convertToJournalEntries(parsed);
-      
-      // Analyze entries (async now)
-      const analysis = await analyzeJournalEntries(entries, useGemini && hasGeminiKey);
+
+      // Load existing entries from localStorage
+      let allEntries: JournalEntry[] = [];
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          allEntries = JSON.parse(saved);
+        }
+      } catch (error) {
+        console.error('Failed to load saved entries:', error);
+      }
+
+      // Add new entries
+      const updatedEntries = [...allEntries, ...entries];
+
+      // Save to localStorage
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedEntries));
+      } catch (error) {
+        console.error('Failed to save entries:', error);
+      }
+
+      // Analyze all entries
+      const analysis = await analyzeJournalEntries(updatedEntries, useGemini && hasGeminiKey);
       setAnalyzedData(analysis);
-      
+
+      // Clear input and template selection
+      setJournalText('');
+      setSelectedTemplate('');
+
       toast.success(
-        `Analyzed ${entries.length} journal entries${useGemini && hasGeminiKey ? ' with Gemini AI' : ''}`
+        `Saved and analyzed ${entries.length} journal ${entries.length === 1 ? 'entry' : 'entries'}${useGemini && hasGeminiKey ? ' with Gemini AI' : ''}`
       );
     } catch (error) {
       console.error('Analysis error:', error);
@@ -55,22 +102,45 @@ export function JournalAnalysis() {
         <CardHeader>
           <CardTitle>Journal Entry Analysis</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Paste your Discord journal entries to get behavioral analysis, quant-style visualizations, and weekly plan
+            Write or paste your journal entries. All entries are automatically saved and analyzed for behavioral patterns, quant-style visualizations, and weekly plans.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="journal-text">Paste Journal Entries</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="journal-text">Journal Entry</Label>
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-muted-foreground" />
+                <Select value={selectedTemplate} onValueChange={handleTemplateSelect}>
+                  <SelectTrigger className="w-[250px]">
+                    <SelectValue placeholder="Select a template..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No Template</SelectItem>
+                    {JOURNAL_TEMPLATES?.map((template) => (
+                      <SelectItem key={template.id} value={template.id}>
+                        {template.name}
+                      </SelectItem>
+                    )) || []}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
             <Textarea
               id="journal-text"
               value={journalText}
               onChange={(e) => setJournalText(e.target.value)}
-              placeholder="Paste your trading journal entries here..."
+              placeholder="Enter your trading journal entry here, or select a template to get started..."
               className="min-h-[300px] font-mono text-sm"
               disabled={isAnalyzing}
             />
+            {analyzedData && analyzedData.entries.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                💾 {analyzedData.entries.length} saved {analyzedData.entries.length === 1 ? 'entry' : 'entries'} • Your entries are automatically saved
+              </p>
+            )}
           </div>
-          
+
           {hasGeminiKey && (
             <div className="flex items-center space-x-2 p-3 rounded-lg bg-muted/50 border border-border">
               <Checkbox
@@ -79,8 +149,8 @@ export function JournalAnalysis() {
                 onCheckedChange={(checked) => setUseGemini(checked === true)}
                 disabled={isAnalyzing}
               />
-              <Label 
-                htmlFor="use-gemini" 
+              <Label
+                htmlFor="use-gemini"
                 className="text-sm font-medium cursor-pointer flex items-center gap-2"
               >
                 <Sparkles className="h-4 w-4 text-primary" />
@@ -89,7 +159,7 @@ export function JournalAnalysis() {
               </Label>
             </div>
           )}
-          
+
           {!hasGeminiKey && (
             <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
               <p className="text-xs text-yellow-600 dark:text-yellow-500">
@@ -97,21 +167,21 @@ export function JournalAnalysis() {
               </p>
             </div>
           )}
-          
-          <Button 
-            onClick={handleAnalyze} 
+
+          <Button
+            onClick={handleAnalyze}
             className="w-full"
             disabled={isAnalyzing}
           >
             {isAnalyzing ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Analyzing...
+                Saving & Analyzing...
               </>
             ) : (
               <>
                 <Upload className="mr-2 h-4 w-4" />
-                Analyze Journal Entries
+                Save & Analyze Entry
               </>
             )}
           </Button>
@@ -127,13 +197,12 @@ export function JournalAnalysis() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Average Process Score</p>
-                    <p className={`text-3xl font-bold ${
-                      analyzedData.averageProcessScore >= 70 
-                        ? 'text-green-600 dark:text-green-500'
-                        : analyzedData.averageProcessScore >= 50
+                    <p className={`text-3xl font-bold ${analyzedData.averageProcessScore >= 70
+                      ? 'text-green-600 dark:text-green-500'
+                      : analyzedData.averageProcessScore >= 50
                         ? 'text-yellow-600 dark:text-yellow-500'
                         : 'text-red-600 dark:text-red-500'
-                    }`}>
+                      }`}>
                       {analyzedData.averageProcessScore.toFixed(1)}
                     </p>
                   </div>
@@ -194,13 +263,13 @@ export function JournalAnalysis() {
                       >
                         <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
                         <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
-                        <YAxis 
-                          type="category" 
-                          dataKey="name" 
+                        <YAxis
+                          type="category"
+                          dataKey="name"
                           width={120}
                           tick={{ fontSize: 11 }}
                         />
-                        <Tooltip 
+                        <Tooltip
                           formatter={(value: number, payload: any) => [
                             `${value.toFixed(1)}% (${payload.count}x)`,
                             'Impact Share'
@@ -245,13 +314,13 @@ export function JournalAnalysis() {
                       >
                         <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
                         <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
-                        <YAxis 
-                          type="category" 
-                          dataKey="name" 
+                        <YAxis
+                          type="category"
+                          dataKey="name"
                           width={120}
                           tick={{ fontSize: 11 }}
                         />
-                        <Tooltip 
+                        <Tooltip
                           formatter={(value: number, payload: any) => [
                             `${value.toFixed(1)}% (${payload.count}x)`,
                             'Impact Share'
@@ -426,12 +495,12 @@ export function JournalAnalysis() {
                       ...analyzedData.pieChartData.strengths.slice(0, 5),
                       ...analyzedData.pieChartData.weaknesses.slice(0, 5)
                     ].map((item, index) => (
-                      <Cell 
-                        key={index} 
+                      <Cell
+                        key={index}
                         fill={
                           index === 0 ? '#6b7280' :
-                          index <= 5 ? '#22c55e' : '#ef4444'
-                        } 
+                            index <= 5 ? '#22c55e' : '#ef4444'
+                        }
                       />
                     ))}
                   </Bar>
@@ -460,12 +529,12 @@ export function JournalAnalysis() {
                   <Tooltip formatter={(value: number) => [`${value.toFixed(1)}`, 'Process Score']} />
                   <Bar dataKey="score" radius={[4, 4, 0, 0]}>
                     {analyzedData.entries.map((entry, index) => (
-                      <Cell 
-                        key={index} 
+                      <Cell
+                        key={index}
                         fill={
                           (entry.processScore || 0) >= 70 ? '#22c55e' :
-                          (entry.processScore || 0) >= 50 ? '#eab308' : '#ef4444'
-                        } 
+                            (entry.processScore || 0) >= 50 ? '#eab308' : '#ef4444'
+                        }
                       />
                     ))}
                   </Bar>

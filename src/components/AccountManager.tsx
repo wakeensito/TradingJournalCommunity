@@ -33,7 +33,10 @@ export function AccountManager({
   const [formData, setFormData] = useState({
     name: '',
     propFirm: 'TakeProfit Trader',
+    accountType: 'eval' as Account['accountType'],
     accountSize: '',
+    cost: '',
+    threshold: '',
     startDate: new Date().toISOString().split('T')[0],
     status: 'active' as Account['status'],
     notes: ''
@@ -60,7 +63,10 @@ export function AccountManager({
       onUpdateAccount(editingAccount.id, {
         name: formData.name,
         propFirm: formData.propFirm,
+        accountType: formData.accountType,
         accountSize: parseFloat(formData.accountSize),
+        cost: formData.cost ? parseFloat(formData.cost) : undefined,
+        threshold: formData.threshold ? parseFloat(formData.threshold) : undefined,
         startDate: formData.startDate,
         status: formData.status,
         notes: formData.notes
@@ -69,7 +75,10 @@ export function AccountManager({
       onAddAccount({
         name: formData.name,
         propFirm: formData.propFirm,
+        accountType: formData.accountType,
         accountSize: parseFloat(formData.accountSize),
+        cost: formData.cost ? parseFloat(formData.cost) : undefined,
+        threshold: formData.threshold ? parseFloat(formData.threshold) : undefined,
         startDate: formData.startDate,
         status: formData.status,
         notes: formData.notes
@@ -81,7 +90,10 @@ export function AccountManager({
     setFormData({
       name: '',
       propFirm: '',
+      accountType: 'eval',
       accountSize: '',
+      cost: '',
+      threshold: '',
       startDate: new Date().toISOString().split('T')[0],
       status: 'active',
       notes: ''
@@ -93,7 +105,10 @@ export function AccountManager({
     setFormData({
       name: account.name,
       propFirm: account.propFirm,
+      accountType: account.accountType,
       accountSize: account.accountSize.toString(),
+      cost: account.cost?.toString() || '',
+      threshold: account.threshold?.toString() || '',
       startDate: account.startDate,
       status: account.status,
       notes: account.notes || ''
@@ -106,7 +121,10 @@ export function AccountManager({
     setFormData({
       name: '',
       propFirm: 'TakeProfit Trader',
+      accountType: 'eval',
       accountSize: '',
+      cost: '',
+      threshold: '',
       startDate: new Date().toISOString().split('T')[0],
       status: 'active',
       notes: ''
@@ -191,6 +209,24 @@ export function AccountManager({
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="accountType">Account Type</Label>
+                <Select value={formData.accountType} onValueChange={(value: Account['accountType']) => setFormData({ ...formData, accountType: value })} required>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="eval">Evaluation</SelectItem>
+                    <SelectItem value="funded">Funded</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {formData.accountType === 'eval' 
+                    ? 'Evaluation phase - working toward passing' 
+                    : 'Funded account - already passed evaluation'}
+                </p>
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="accountSize">Account Size ($)</Label>
                 <Input
                   id="accountSize"
@@ -200,6 +236,34 @@ export function AccountManager({
                   onChange={(e) => setFormData({ ...formData, accountSize: e.target.value })}
                   required
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="cost">Account Cost ($)</Label>
+                <Input
+                  id="cost"
+                  type="number"
+                  placeholder="e.g., 49, 99, 199"
+                  value={formData.cost}
+                  onChange={(e) => setFormData({ ...formData, cost: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Cost to purchase or activate this prop firm account
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="threshold">Profit Threshold ($)</Label>
+                <Input
+                  id="threshold"
+                  type="number"
+                  placeholder="e.g., 3000, 5000"
+                  value={formData.threshold}
+                  onChange={(e) => setFormData({ ...formData, threshold: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Profit target required to pass the evaluation (e.g., $3000 for TopStep)
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -325,6 +389,39 @@ export function AccountManager({
                 </p>
               </div>
             </div>
+            {/* Account Expenses Section */}
+            <div className="mt-6 pt-6 border-t">
+              <h4 className="text-sm font-semibold mb-4">Account Expenses</h4>
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Total Account Costs</p>
+                  <p className="text-xl font-semibold text-orange-600 dark:text-orange-400">
+                    {formatCurrency(accounts.reduce((sum, acc) => sum + (acc.cost || 0), 0))}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {accounts.filter(acc => acc.cost !== undefined && acc.cost > 0).length} account{accounts.filter(acc => acc.cost !== undefined && acc.cost > 0).length !== 1 ? 's' : ''} with costs
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Evaluation Accounts</p>
+                  <p className="text-xl">
+                    {accounts.filter(acc => acc.accountType === 'eval').length}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatCurrency(accounts.filter(acc => acc.accountType === 'eval').reduce((sum, acc) => sum + (acc.cost || 0), 0))} total cost
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Funded Accounts</p>
+                  <p className="text-xl">
+                    {accounts.filter(acc => acc.accountType === 'funded').length}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatCurrency(accounts.filter(acc => acc.accountType === 'funded').reduce((sum, acc) => sum + (acc.cost || 0), 0))} total cost
+                  </p>
+                </div>
+              </div>
+            </div>
             <div className="mt-6 pt-6 border-t grid gap-4 md:grid-cols-3 text-sm">
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Active Accounts:</span>
@@ -362,9 +459,12 @@ export function AccountManager({
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <CardTitle className="text-base">{account.name}</CardTitle>
-                        <CardDescription className="flex items-center gap-1 mt-1">
+                        <CardDescription className="flex items-center gap-2 mt-1">
                           <Building2 className="w-3 h-3" />
-                          {account.propFirm}
+                          <span>{account.propFirm}</span>
+                          <Badge variant="outline" className="text-xs bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20">
+                            {account.accountType === 'eval' ? 'Eval' : 'Funded'}
+                          </Badge>
                         </CardDescription>
                       </div>
                       <Badge variant="outline" className={getStatusColor(account.status)}>
@@ -377,12 +477,32 @@ export function AccountManager({
                       <span className="text-muted-foreground">Account Size:</span>
                       <span>{formatCurrency(account.accountSize)}</span>
                     </div>
+                    {account.cost !== undefined && (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Cost:</span>
+                        <span className="font-medium text-orange-600 dark:text-orange-400">{formatCurrency(account.cost)}</span>
+                      </div>
+                    )}
+                    {account.threshold !== undefined && (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Threshold:</span>
+                        <span className="font-medium">{formatCurrency(account.threshold)}</span>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-muted-foreground">Total P&L:</span>
                       <span className={stats.totalPnL >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
                         {formatCurrency(stats.totalPnL)}
                       </span>
                     </div>
+                    {account.threshold !== undefined && (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Progress to Threshold:</span>
+                        <span className={stats.totalPnL >= account.threshold ? 'text-green-600 dark:text-green-400 font-semibold' : 'text-muted-foreground'}>
+                          {((stats.totalPnL / account.threshold) * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-muted-foreground">Trades:</span>
                       <span>{stats.tradeCount}</span>
@@ -449,9 +569,12 @@ export function AccountManager({
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <CardTitle className="text-base">{account.name}</CardTitle>
-                        <CardDescription className="flex items-center gap-1 mt-1">
+                        <CardDescription className="flex items-center gap-2 mt-1">
                           <Building2 className="w-3 h-3" />
-                          {account.propFirm}
+                          <span>{account.propFirm}</span>
+                          <Badge variant="outline" className="text-xs bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20">
+                            {account.accountType === 'eval' ? 'Eval' : 'Funded'}
+                          </Badge>
                         </CardDescription>
                       </div>
                       <Badge variant="outline" className={getStatusColor(account.status)}>
@@ -460,12 +583,32 @@ export function AccountManager({
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
+                    {account.cost !== undefined && (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Cost:</span>
+                        <span className="font-medium text-orange-600 dark:text-orange-400">{formatCurrency(account.cost)}</span>
+                      </div>
+                    )}
+                    {account.threshold !== undefined && (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Threshold:</span>
+                        <span className="font-medium">{formatCurrency(account.threshold)}</span>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-muted-foreground">Total P&L:</span>
                       <span className={stats.totalPnL >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
                         {formatCurrency(stats.totalPnL)}
                       </span>
                     </div>
+                    {account.threshold !== undefined && (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Progress to Threshold:</span>
+                        <span className={stats.totalPnL >= account.threshold ? 'text-green-600 dark:text-green-400 font-semibold' : 'text-muted-foreground'}>
+                          {((stats.totalPnL / account.threshold) * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-muted-foreground">Trades:</span>
                       <span>{stats.tradeCount}</span>

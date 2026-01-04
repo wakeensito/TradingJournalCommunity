@@ -2,7 +2,10 @@ export interface Account {
   id: string;
   name: string; // e.g., "TopStep - Nov 2024"
   propFirm: string; // e.g., "TopStep", "Apex", "FTMO"
+  accountType: 'eval' | 'funded'; // Evaluation or funded account
   accountSize: number; // e.g., 50000, 150000
+  cost?: number; // Cost to purchase/activate the account
+  threshold?: number; // Profit threshold required to pass (e.g., $3000 for TopStep)
   startDate: string;
   status: 'active' | 'passed' | 'failed' | 'archived';
   notes?: string;
