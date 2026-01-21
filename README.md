@@ -64,4 +64,3 @@ firebase deploy --only hosting
 - This repo is set up to **ignore `.env*` files** via `.gitignore`.
 - Don’t commit API keys or service account JSON. Use environment variables instead.
 - See `SECURITY.md` for reporting and remediation steps.
-  

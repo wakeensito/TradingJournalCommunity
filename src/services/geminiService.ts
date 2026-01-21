@@ -3,7 +3,7 @@
  * Uses Google Gemini API for semantic understanding of journal entries
  */
 
-import { DetectedTag, StrengthTag, WeaknessTag } from '../types/journal';
+import { DetectedTag, StrengthTag, WeaknessTag, SetupAnalysis } from '../types/journal';
 
 const GEMINI_API_KEY = (import.meta as any).env?.VITE_GEMINI_API_KEY;
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
@@ -16,12 +16,24 @@ interface GeminiTagDetection {
   reasoning?: string;
 }
 
+interface GeminiAnalysisResponse {
+  behaviors: GeminiTagDetection[];
+  setupAnalysis?: {
+    entryMethod?: string;
+    confirmationSignals?: string[];
+    levelTypes?: string[];
+    riskManagement?: string;
+    exitStrategy?: string;
+    improvements?: string[];
+  };
+}
+
 /**
  * Analyze a journal entry using Gemini AI for semantic understanding
  */
 export async function analyzeJournalEntryWithGemini(
   entryContent: string
-): Promise<DetectedTag[]> {
+): Promise<{ tags: DetectedTag[]; setupAnalysis?: SetupAnalysis }> {
   if (!GEMINI_API_KEY) {
     console.warn('Gemini API key not found. Falling back to keyword matching.');
     return [];
@@ -64,7 +76,7 @@ export async function analyzeJournalEntryWithGemini(
     return parseGeminiResponse(text);
   } catch (error) {
     console.error('Gemini analysis error:', error);
-    return []; // Return empty array to fall back to keyword matching
+    return { tags: [], setupAnalysis: undefined }; // Return empty to fall back to keyword matching
   }
 }
 
@@ -72,10 +84,12 @@ export async function analyzeJournalEntryWithGemini(
  * Create a structured prompt for Gemini analysis
  */
 function createAnalysisPrompt(entryContent: string): string {
-  return `You are analyzing a trading journal entry to detect behavioral patterns. Analyze the following journal entry and identify trading behaviors.
+  return `You are analyzing a trading journal entry to detect behavioral patterns AND analyze setup details. Analyze the following journal entry comprehensively.
 
 Journal Entry:
 ${entryContent}
+
+TASK 1: Detect Behavioral Patterns
 
 Available Strength Tags:
 - patience_confirmation: Waiting for confirmation, patience in entries, not chasing
@@ -97,24 +111,44 @@ Available Weakness Tags:
 - overtrading: Multiple re-entries, over-trading, taking too many trades
 - process_error: Trade copier issues, ATM mistakes, technical errors
 
-Return a JSON array of detected behaviors in this format:
-[
-  {
-    "tag": "tag_name",
-    "severity": "low|med|high",
-    "confidence": 0.0-1.0,
-    "context": "brief explanation",
-    "reasoning": "why this tag applies"
-  }
-]
+TASK 2: Analyze Setup Details
 
-Only include tags that are clearly present. Be conservative with confidence scores. Return ONLY valid JSON, no markdown, no explanation.`;
+Extract and analyze the setup details mentioned in the entry:
+- Entry method (e.g., "Retest of key level", "Breakdown", "Breakout", "Bull flag")
+- Confirmation signals used (e.g., "Candle closure", "Rejection", "Volume confirmation")
+- Level types identified (e.g., "Demand zone", "Supply zone", "Key level", "ORH/ORL")
+- Risk management approach
+- Exit strategy
+- Specific improvements or adjustments needed
+
+Return a JSON object with both behavioral tags AND setup analysis:
+{
+  "behaviors": [
+    {
+      "tag": "tag_name",
+      "severity": "low|med|high",
+      "confidence": 0.0-1.0,
+      "context": "brief explanation",
+      "reasoning": "why this tag applies"
+    }
+  ],
+  "setupAnalysis": {
+    "entryMethod": "description of entry method used",
+    "confirmationSignals": ["signal1", "signal2"],
+    "levelTypes": ["level type 1", "level type 2"],
+    "riskManagement": "description of risk management approach",
+    "exitStrategy": "description of exit strategy",
+    "improvements": ["improvement 1", "improvement 2"]
+  }
+}
+
+Only include tags that are clearly present. Be conservative with confidence scores. For setup analysis, extract specific details mentioned in the entry. Return ONLY valid JSON, no markdown, no explanation.`;
 }
 
 /**
- * Parse Gemini's JSON response into DetectedTag format
+ * Parse Gemini's JSON response into DetectedTag format and SetupAnalysis
  */
-function parseGeminiResponse(responseText: string): DetectedTag[] {
+function parseGeminiResponse(responseText: string): { tags: DetectedTag[]; setupAnalysis?: SetupAnalysis } {
   try {
     // Extract JSON from response (handle markdown code blocks if present)
     let jsonText = responseText.trim();
@@ -127,19 +161,43 @@ function parseGeminiResponse(responseText: string): DetectedTag[] {
       }
     }
     
-    // Try to find JSON array in the text
-    const jsonMatch = jsonText.match(/\[[\s\S]*\]/);
-    if (jsonMatch) {
-      jsonText = jsonMatch[0];
+    // Try to find JSON object or array in the text
+    const objectMatch = jsonText.match(/\{[\s\S]*\}/);
+    const arrayMatch = jsonText.match(/\[[\s\S]*\]/);
+    
+    if (objectMatch) {
+      jsonText = objectMatch[0];
+    } else if (arrayMatch) {
+      jsonText = arrayMatch[0];
     }
     
     const parsed = JSON.parse(jsonText);
     
-    if (!Array.isArray(parsed)) {
-      return [];
+    // Handle both old format (array) and new format (object with behaviors and setupAnalysis)
+    let behaviors: GeminiTagDetection[] = [];
+    let setupAnalysis: SetupAnalysis | undefined = undefined;
+    
+    if (Array.isArray(parsed)) {
+      // Old format - just behaviors array
+      behaviors = parsed;
+    } else if (parsed.behaviors && Array.isArray(parsed.behaviors)) {
+      // New format - object with behaviors and setupAnalysis
+      behaviors = parsed.behaviors;
+      if (parsed.setupAnalysis) {
+        setupAnalysis = {
+          entryMethod: parsed.setupAnalysis.entryMethod,
+          confirmationSignals: parsed.setupAnalysis.confirmationSignals,
+          levelTypes: parsed.setupAnalysis.levelTypes,
+          riskManagement: parsed.setupAnalysis.riskManagement,
+          exitStrategy: parsed.setupAnalysis.exitStrategy,
+          improvements: parsed.setupAnalysis.improvements
+        };
+      }
+    } else {
+      return { tags: [], setupAnalysis: undefined };
     }
 
-    return parsed
+    const tags = behaviors
       .filter((item: GeminiTagDetection) => {
         // Validate tag exists
         const validTags: string[] = [
@@ -158,9 +216,11 @@ function parseGeminiResponse(responseText: string): DetectedTag[] {
         context: item.context,
         matchedPhrases: item.reasoning ? [item.reasoning] : []
       }));
+    
+    return { tags, setupAnalysis };
   } catch (error) {
     console.error('Failed to parse Gemini response:', error);
-    return [];
+    return { tags: [], setupAnalysis: undefined };
   }
 }
 
@@ -171,8 +231,8 @@ export async function analyzeJournalEntriesWithGemini(
   entries: { content: string }[],
   batchSize: number = 5,
   delayMs: number = 1000
-): Promise<DetectedTag[][]> {
-  const results: DetectedTag[][] = [];
+): Promise<{ tags: DetectedTag[]; setupAnalysis?: SetupAnalysis }[]> {
+  const results: { tags: DetectedTag[]; setupAnalysis?: SetupAnalysis }[] = [];
   
   for (let i = 0; i < entries.length; i += batchSize) {
     const batch = entries.slice(i, i + batchSize);

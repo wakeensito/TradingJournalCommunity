@@ -1,130 +1,116 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
-import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
 import { Badge } from './ui/badge';
-import { Checkbox } from './ui/checkbox';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
-import { ScrollArea } from './ui/scroll-area';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ComposedChart, Line, LineChart } from 'recharts';
-import { Sparkles, Loader2, BookOpen, TrendingUp, Target, Calendar, ChevronRight, FileText } from 'lucide-react';
-import { parseDiscordJournal, convertToJournalEntries } from '../services/journalParser';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell as RechartsCell } from 'recharts';
+import { BookOpen, TrendingUp, ChevronRight } from 'lucide-react';
 import { analyzeJournalEntries } from '../services/behavioralAnalysis';
 import { JournalEntry } from '../types/journal';
 import { toast } from 'sonner';
-import { JOURNAL_TEMPLATES, formatTemplate, JournalTemplate } from '../services/journalTemplates';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { loadJournalEntries, saveJournalEntries } from '../services/journalStorage';
 
-const STORAGE_KEY = 'tradingJournal_entries';
+interface JournalAnalysisCardProps {
+  onNavigateToJournal?: () => void;
+}
 
-export function JournalAnalysisCard() {
-  const [journalText, setJournalText] = useState('');
-  const [savedEntries, setSavedEntries] = useState<JournalEntry[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : [];
-  });
+export function JournalAnalysisCard({ onNavigateToJournal }: JournalAnalysisCardProps = {}) {
+  const [savedEntries, setSavedEntries] = useState<JournalEntry[]>([]);
   const [analyzedData, setAnalyzedData] = useState<Awaited<ReturnType<typeof analyzeJournalEntries>> | null>(null);
-  const [useGemini, setUseGemini] = useState(false);
+  const [useGemini] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   
   const hasGeminiKey = !!import.meta.env.VITE_GEMINI_API_KEY;
 
-  // Load and analyze saved entries on mount
+  // Load saved entries from Firebase/localStorage on mount (with delay to prevent crash on login)
   useEffect(() => {
-    if (savedEntries.length > 0) {
-      analyzeSavedEntries();
-    }
+    // Delay loading to prevent crash on initial login
+    const timeoutId = setTimeout(() => {
+      const loadEntries = async () => {
+        try {
+          setIsLoading(true);
+          const entries = await loadJournalEntries();
+          console.log(`Loaded ${entries.length} journal entries from storage`);
+          setSavedEntries(entries);
+          // Auto-analyze if we have entries (limit to prevent crashes)
+          if (entries.length > 0 && entries.length <= 100) {
+            try {
+              const analysis = await analyzeJournalEntries(entries.slice(0, 100), useGemini && hasGeminiKey);
+              setAnalyzedData(analysis);
+            } catch (error) {
+              console.error('Auto-analysis failed:', error);
+            }
+          }
+        } catch (error) {
+          console.error('Failed to load journal entries:', error);
+          // Don't show toast on initial load to prevent spam
+          if (savedEntries.length === 0) {
+            console.warn('Could not load journal entries, starting with empty list');
+          }
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      loadEntries();
+    }, 500); // Delay by 500ms to let the app settle after login
+
+    return () => clearTimeout(timeoutId);
   }, []);
 
-  // Save entries to localStorage whenever they change
+  // Save entries to Firebase/localStorage whenever they change (debounced)
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(savedEntries));
-  }, [savedEntries]);
+    if (isLoading) return; // Don't save while loading
+    
+    const timeoutId = setTimeout(() => {
+      if (savedEntries.length > 0) {
+        saveJournalEntries(savedEntries).catch(error => {
+          console.error('Failed to save journal entries:', error);
+          toast.error('Failed to save entries to Firebase. Check console for details.');
+        });
+      }
+    }, 1000); // Debounce saves by 1 second
 
-  const analyzeSavedEntries = async () => {
-    if (savedEntries.length === 0) return;
+    return () => clearTimeout(timeoutId);
+  }, [savedEntries, isLoading]);
+
+  const analyzeSavedEntries = async (entries?: JournalEntry[]) => {
+    const entriesToAnalyze = entries || savedEntries;
+    if (entriesToAnalyze.length === 0) return;
     
     setIsAnalyzing(true);
     try {
-      const analysis = await analyzeJournalEntries(savedEntries, useGemini && hasGeminiKey);
+      // Limit analysis to prevent crashes with large datasets
+      const entriesToAnalyzeLimited = entriesToAnalyze.slice(0, 100); // Limit to 100 entries for analysis
+      const analysis = await analyzeJournalEntries(entriesToAnalyzeLimited, useGemini && hasGeminiKey);
       setAnalyzedData(analysis);
     } catch (error) {
       console.error('Analysis error:', error);
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
-  const handleAddEntry = async () => {
-    if (!journalText.trim()) {
-      toast.error('Please paste your journal entries');
-      return;
-    }
-
-    setIsAnalyzing(true);
-    try {
-      const parsed = parseDiscordJournal(journalText);
-      const newEntries = convertToJournalEntries(parsed);
-      
-      // Add new entries to saved entries
-      const updatedEntries = [...savedEntries, ...newEntries];
-      setSavedEntries(updatedEntries);
-      
-      // Analyze all entries
-      const analysis = await analyzeJournalEntries(updatedEntries, useGemini && hasGeminiKey);
-      setAnalyzedData(analysis);
-      
-      // Clear input
-      setJournalText('');
-      
-      toast.success(
-        `Added ${newEntries.length} journal entries${useGemini && hasGeminiKey ? ' with Gemini AI' : ''}`
-      );
-    } catch (error) {
-      console.error('Analysis error:', error);
-      toast.error('Failed to analyze journal entries');
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
-  const handleDeleteEntry = (id: string) => {
-    const updated = savedEntries.filter(e => e.id !== id);
-    setSavedEntries(updated);
-    if (updated.length > 0) {
-      analyzeJournalEntries(updated, useGemini && hasGeminiKey).then(setAnalyzedData);
-    } else {
+      toast.error('Failed to analyze entries. The data may be too large.');
+      // Set empty analysis to prevent crash
       setAnalyzedData(null);
+    } finally {
+      setIsAnalyzing(false);
     }
-    toast.success('Journal entry deleted');
   };
-
-  // Re-analyze when Gemini toggle changes
-  useEffect(() => {
-    if (savedEntries.length > 0) {
-      analyzeSavedEntries();
-    }
-  }, [useGemini]);
 
   const strengthColors = ['#22c55e', '#10b981', '#059669', '#047857'];
   const weaknessColors = ['#ef4444', '#dc2626', '#b91c1c', '#991b1b'];
 
   // Prepare chart data
   const barChartData = useMemo(() => {
-    if (!analyzedData) return [];
+    if (!analyzedData || !analyzedData.pieChartData) return [];
     
-    const strengths = analyzedData.pieChartData.strengths.slice(0, 5).map((s, i) => ({
+    const strengths = (analyzedData.pieChartData.strengths || []).slice(0, 5).map((s, i) => ({
       name: s.tag.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-      value: s.percentage,
+      value: Math.round(s.percentage * 100) / 100,
       type: 'strength',
       color: strengthColors[i % strengthColors.length]
     }));
     
-    const weaknesses = analyzedData.pieChartData.weaknesses.slice(0, 5).map((w, i) => ({
+    const weaknesses = (analyzedData.pieChartData.weaknesses || []).slice(0, 5).map((w, i) => ({
       name: w.tag.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-      value: w.percentage,
+      value: Math.round(w.percentage * 100) / 100,
       type: 'weakness',
       color: weaknessColors[i % weaknessColors.length]
     }));
@@ -133,7 +119,7 @@ export function JournalAnalysisCard() {
   }, [analyzedData]);
 
   const processScoreData = useMemo(() => {
-    if (!analyzedData) return [];
+    if (!analyzedData || !analyzedData.entries || !Array.isArray(analyzedData.entries)) return [];
     
     return analyzedData.entries
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
@@ -166,7 +152,7 @@ export function JournalAnalysisCard() {
                 <div>
                   <p className="text-xs text-muted-foreground">Average Process Score</p>
                   <p className={`text-2xl font-bold ${analyzedData.averageProcessScore >= 70 ? 'text-green-600' : analyzedData.averageProcessScore >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>
-                    {analyzedData.averageProcessScore}/100
+                    {Math.round(analyzedData.averageProcessScore)}/100
                   </p>
                 </div>
                 <TrendingUp className="h-8 w-8 text-muted-foreground" />
@@ -182,14 +168,24 @@ export function JournalAnalysisCard() {
                         dataKey="name" 
                         angle={-45}
                         textAnchor="end"
-                        height={60}
-                        tick={{ fontSize: 10 }}
+                        height={80}
+                        tick={{ fontSize: 9 }}
+                        tickFormatter={(value) => {
+                          // Truncate long labels
+                          const maxLength = 12;
+                          return value.length > maxLength ? value.substring(0, maxLength) + '...' : value;
+                        }}
                       />
-                      <YAxis tick={{ fontSize: 10 }} />
-                      <Tooltip />
+                      <YAxis 
+                        tick={{ fontSize: 10 }}
+                        tickFormatter={(value) => `${Math.round(value * 100) / 100}%`}
+                      />
+                      <Tooltip 
+                        formatter={(value: number) => [`${Math.round(value * 100) / 100}%`, 'Percentage']}
+                      />
                       <Bar dataKey="value" fill="#8884d8" radius={[4, 4, 0, 0]}>
                         {barChartData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
+                          <RechartsCell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Bar>
                     </BarChart>
@@ -222,241 +218,19 @@ export function JournalAnalysisCard() {
           )}
 
           {/* Actions */}
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" className="w-full" size="sm">
-                {savedEntries.length > 0 ? 'Add Entry / View Full Analysis' : 'Add Journal Entry'}
-                <ChevronRight className="ml-2 h-4 w-4" />
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Journal Entry Analysis</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                {/* Add Entry Section */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Add New Entry</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {/* Template Selector */}
-                    <div className="space-y-2">
-                      <Label htmlFor="template-select">Use Template (Optional)</Label>
-                      <Select
-                        onValueChange={(value) => {
-                          const template = JOURNAL_TEMPLATES.find(t => t.id === value);
-                          if (template) {
-                            setJournalText(formatTemplate(template.template));
-                            toast.success(`Loaded ${template.name} template`);
-                          }
-                        }}
-                      >
-                        <SelectTrigger id="template-select">
-                          <SelectValue placeholder="Select a template..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none" disabled>Choose a template...</SelectItem>
-                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Daily</div>
-                          {JOURNAL_TEMPLATES.filter(t => t.category === 'daily').map(template => (
-                            <SelectItem key={template.id} value={template.id}>
-                              <div className="flex flex-col">
-                                <span>{template.name}</span>
-                                <span className="text-xs text-muted-foreground">{template.description}</span>
-                              </div>
-                            </SelectItem>
-                          ))}
-                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground mt-2">Trade Analysis</div>
-                          {JOURNAL_TEMPLATES.filter(t => t.category === 'trade').map(template => (
-                            <SelectItem key={template.id} value={template.id}>
-                              <div className="flex flex-col">
-                                <span>{template.name}</span>
-                                <span className="text-xs text-muted-foreground">{template.description}</span>
-                              </div>
-                            </SelectItem>
-                          ))}
-                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground mt-2">Other</div>
-                          {JOURNAL_TEMPLATES.filter(t => t.category === 'weekly' || t.category === 'quick').map(template => (
-                            <SelectItem key={template.id} value={template.id}>
-                              <div className="flex flex-col">
-                                <span>{template.name}</span>
-                                <span className="text-xs text-muted-foreground">{template.description}</span>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="journal-text">Paste Journal Entry</Label>
-                      <Textarea
-                        id="journal-text"
-                        value={journalText}
-                        onChange={(e) => setJournalText(e.target.value)}
-                        placeholder="Paste your trading journal entry here (Discord format) or use a template above..."
-                        className="min-h-[300px] font-mono text-sm"
-                        disabled={isAnalyzing}
-                      />
-                    </div>
-                    
-                    {hasGeminiKey && (
-                      <div className="flex items-center space-x-2 p-2 rounded-lg bg-muted/50 border border-border">
-                        <Checkbox
-                          id="use-gemini"
-                          checked={useGemini}
-                          onCheckedChange={(checked) => setUseGemini(checked === true)}
-                          disabled={isAnalyzing}
-                        />
-                        <Label 
-                          htmlFor="use-gemini" 
-                          className="text-sm font-medium cursor-pointer flex items-center gap-2"
-                        >
-                          <Sparkles className="h-4 w-4 text-primary" />
-                          Use Gemini AI for enhanced analysis
-                        </Label>
-                      </div>
-                    )}
-                    
-                    <Button 
-                      onClick={handleAddEntry} 
-                      disabled={isAnalyzing || !journalText.trim()}
-                      className="w-full"
-                    >
-                      {isAnalyzing ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Analyzing...
-                        </>
-                      ) : (
-                        'Add & Analyze Entry'
-                      )}
-                    </Button>
-                  </CardContent>
-                </Card>
-
-                {/* Saved Entries List */}
-                {savedEntries.length > 0 && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">Saved Entries ({savedEntries.length})</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <ScrollArea className="h-64">
-                        <div className="space-y-2">
-                          {savedEntries
-                            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                            .map((entry) => (
-                              <div key={entry.id} className="flex items-start justify-between p-3 rounded-lg border bg-card">
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <Calendar className="h-3 w-3 text-muted-foreground" />
-                                    <span className="text-xs font-medium">
-                                      {new Date(entry.date).toLocaleDateString('en-US', { 
-                                        month: 'short', 
-                                        day: 'numeric', 
-                                        year: 'numeric' 
-                                      })}
-                                    </span>
-                                    {entry.processScore !== undefined && (
-                                      <Badge 
-                                        variant="outline" 
-                                        className={`text-xs ${
-                                          entry.processScore >= 70 ? 'border-green-500 text-green-600' :
-                                          entry.processScore >= 50 ? 'border-yellow-500 text-yellow-600' :
-                                          'border-red-500 text-red-600'
-                                        }`}
-                                      >
-                                        {entry.processScore}/100
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  <p className="text-xs text-muted-foreground line-clamp-2">
-                                    {entry.content.substring(0, 150)}...
-                                  </p>
-                                </div>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 shrink-0 ml-2"
-                                  onClick={() => handleDeleteEntry(entry.id)}
-                                >
-                                  ×
+          <Button 
+            variant="outline" 
+            className="w-full" 
+            size="sm"
+            onClick={() => {
+              if (onNavigateToJournal) {
+                onNavigateToJournal();
+              }
+            }}
+          >
+            {savedEntries.length > 0 ? 'Add Entry / View Full Analysis' : 'Add Journal Entry'}
+            <ChevronRight className="ml-2 h-4 w-4" />
                                 </Button>
-                              </div>
-                            ))}
-                        </div>
-                      </ScrollArea>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Full Analysis View */}
-                {analyzedData && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">Full Analysis</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      {/* Process Score Trend */}
-                      {processScoreData.length > 0 && (
-                        <div>
-                          <Label className="text-sm mb-2 block">Process Score Trend</Label>
-                          <div className="h-48">
-                            <ResponsiveContainer width="100%" height="100%">
-                              <LineChart data={processScoreData}>
-                                <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                                <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                                <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} />
-                                <Tooltip />
-                                <Line 
-                                  type="monotone" 
-                                  dataKey="score" 
-                                  stroke="#8884d8" 
-                                  strokeWidth={2}
-                                  dot={{ r: 4 }}
-                                />
-                              </LineChart>
-                            </ResponsiveContainer>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Weekly Plan */}
-                      {analyzedData.weeklyPlan && (
-                        <div className="p-4 rounded-lg bg-gradient-to-br from-blue-500/10 to-purple-500/10 border border-blue-500/20">
-                          <div className="flex items-center gap-2 mb-3">
-                            <Target className="h-4 w-4 text-primary" />
-                            <Label className="text-sm font-semibold">Weekly Plan</Label>
-                          </div>
-                          <div className="space-y-2 text-sm">
-                            <div>
-                              <span className="font-medium">Risk Cap: </span>
-                              {analyzedData.weeklyPlan.riskCap}
-                            </div>
-                            <div>
-                              <span className="font-medium">Max Stop: </span>
-                              {analyzedData.weeklyPlan.maxStop}
-                            </div>
-                            {analyzedData.weeklyPlan.dailyRules.length > 0 && (
-                              <div>
-                                <span className="font-medium">Daily Rules:</span>
-                                <ul className="list-disc list-inside mt-1 space-y-1">
-                                  {analyzedData.weeklyPlan.dailyRules.slice(0, 5).map((rule, i) => (
-                                    <li key={i} className="text-xs">{rule}</li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-            </DialogContent>
-          </Dialog>
         </CardContent>
       </Card>
     </>

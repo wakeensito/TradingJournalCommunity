@@ -1,5 +1,5 @@
 import { TrendingUp, Moon, Sun, BarChart3, FolderOpen, Zap, CheckCircle2, Camera, Calculator, Filter, Copy, Target, Brain, Shield, Rocket, ArrowRight, AlertCircle, FileQuestion, TrendingDown, Twitter, Github, Linkedin, Sparkles, BookOpen, LineChart as LineChartIcon, FileSpreadsheet, Activity, DollarSign, Calendar } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Cell, AreaChart, Area } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Cell as RechartsCell, AreaChart, Area } from 'recharts';
 import { Badge } from './ui/badge';
 
 interface LandingPageProps {
@@ -398,7 +398,7 @@ export function LandingPage({ onGetStarted, darkMode, setDarkMode }: LandingPage
                               { name: 'Premature BE', value: -18, type: 'weakness' },
                               { name: 'Tight Trail', value: -15, type: 'weakness' }
                             ].map((entry, index) => (
-                              <Cell 
+                              <RechartsCell 
                                 key={`cell-${index}`} 
                                 fill={entry.type === 'strength' ? '#10B981' : '#EF4444'} 
                               />

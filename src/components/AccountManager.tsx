@@ -17,7 +17,8 @@ interface AccountManagerProps {
   onUpdateAccount: (id: string, account: Partial<Account>) => void;
   selectedAccountId: string | null;
   onSelectAccount: (accountId: string | null) => void;
-  getAccountStats: (accountId: string) => { totalPnL: number; tradeCount: number; winRate: number };
+  getAccountStats: (accountId: string) => { totalPnL: number; tradeCount: number; closedTradeCount: number; winRate: number };
+  trades?: any[]; // Optional: to check for unlinked trades
 }
 
 export function AccountManager({
@@ -26,7 +27,8 @@ export function AccountManager({
   onUpdateAccount,
   selectedAccountId,
   onSelectAccount,
-  getAccountStats
+  getAccountStats,
+  trades = []
 }: AccountManagerProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
@@ -351,6 +353,34 @@ export function AccountManager({
             </div>
           </CardHeader>
           <CardContent>
+            {/* Warning for unlinked trades */}
+            {(() => {
+              const unlinkedClosedTrades = trades.filter(t => !t.accountId && t.status === 'closed' && t.pnl !== undefined);
+              const unlinkedPnL = unlinkedClosedTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
+              if (unlinkedClosedTrades.length > 0) {
+                return (
+                  <div className="mb-4 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                    <p className="text-sm text-yellow-600 dark:text-yellow-400 font-medium mb-1">
+                      ⚠️ {unlinkedClosedTrades.length} closed trade{unlinkedClosedTrades.length !== 1 ? 's' : ''} not linked to any account
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      These trades have a combined P&L of {formatCurrency(unlinkedPnL)} but won't appear in account stats.
+                      {unlinkedPnL !== 0 && (
+                        <span className="block mt-1">
+                          <strong>Total Combined P&L (including unlinked):</strong> {formatCurrency(
+                            accounts.reduce((sum, acc) => sum + getAccountStats(acc.id).totalPnL, 0) + unlinkedPnL
+                          )}
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      To fix: Edit these trades in the Trades tab to link them to an account, or reupload your CSV and select an account.
+                    </p>
+                  </div>
+                );
+              }
+              return null;
+            })()}
             <div className="grid gap-6 md:grid-cols-4">
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Total Account Size</p>
@@ -361,11 +391,25 @@ export function AccountManager({
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Combined P&L</p>
                 <p className={`text-2xl ${
-                  accounts.reduce((sum, acc) => sum + getAccountStats(acc.id).totalPnL, 0) >= 0 
+                  (() => {
+                    const combinedPnL = accounts.reduce((sum, acc) => {
+                      const stats = getAccountStats(acc.id);
+                      console.log(`[AccountManager] Account ${acc.id} (${acc.name}): PnL = ${stats.totalPnL}, Closed Trades = ${stats.closedTradeCount}`);
+                      return sum + stats.totalPnL;
+                    }, 0);
+                    console.log(`[AccountManager] Combined P&L: ${combinedPnL}`);
+                    return combinedPnL;
+                  })() >= 0 
                     ? 'text-green-600 dark:text-green-400' 
                     : 'text-red-600 dark:text-red-400'
                 }`}>
-                  {formatCurrency(accounts.reduce((sum, acc) => sum + getAccountStats(acc.id).totalPnL, 0))}
+                  {formatCurrency((() => {
+                    const combinedPnL = accounts.reduce((sum, acc) => {
+                      const stats = getAccountStats(acc.id);
+                      return sum + stats.totalPnL;
+                    }, 0);
+                    return combinedPnL;
+                  })())}
                 </p>
               </div>
               <div className="space-y-1">

@@ -159,6 +159,93 @@ function extractSetupDetails(text: string): ParsedJournal['setupDetails'] {
   return details;
 }
 
+/**
+ * Extract quant metrics from journal entry text
+ */
+export function extractQuantMetrics(text: string): import('../types/journal').QuantMetrics {
+  const metrics: import('../types/journal').QuantMetrics = {};
+  
+  // Extract position size
+  const sizeMatch = text.match(/(?:Position Size|Size)[:\s]*([^\n]+)/i);
+  if (sizeMatch) {
+    metrics.positionSize = sizeMatch[1].trim();
+  }
+  
+  // Extract risk points (e.g., "12.5 points", "25 points", "12.5-25 points")
+  const riskMatch = text.match(/Risk[:\s]*([^\n]+)/i);
+  if (riskMatch) {
+    const riskText = riskMatch[1].trim();
+    const pointsMatch = riskText.match(/(\d+(?:\.\d+)?)\s*points?/i);
+    if (pointsMatch) {
+      metrics.riskPoints = parseFloat(pointsMatch[1]);
+    }
+  }
+  
+  // Extract exit points (e.g., "50 points", "2R", "1.5R", "S/L", "B/E")
+  const exitMatch = text.match(/Exit[:\s]*([^\n]+)/i);
+  if (exitMatch) {
+    const exitText = exitMatch[1].trim();
+    
+    // Check for R multiples (e.g., "2R", "1.5R", "3R+")
+    const rMatch = exitText.match(/(\d+(?:\.\d+)?)\s*R/i);
+    if (rMatch && metrics.riskPoints) {
+      metrics.exitPoints = parseFloat(rMatch[1]) * metrics.riskPoints;
+      metrics.riskRewardRatio = parseFloat(rMatch[1]);
+    } else {
+      // Check for point values
+      const pointsMatch = exitText.match(/(\d+(?:\.\d+)?)\s*points?/i);
+      if (pointsMatch && metrics.riskPoints) {
+        metrics.exitPoints = parseFloat(pointsMatch[1]);
+        metrics.riskRewardRatio = metrics.exitPoints / metrics.riskPoints;
+      }
+    }
+    
+    // Determine win/loss
+    if (exitText.match(/S\/L|stop|stopped out|loss/i)) {
+      metrics.winLoss = 'loss';
+    } else if (exitText.match(/B\/E|breakeven|BE/i)) {
+      metrics.winLoss = 'breakeven';
+    } else if (exitText.match(/\d+\s*R|\d+\s*points?/i)) {
+      metrics.winLoss = 'win';
+    }
+  }
+  
+  // Extract entry type
+  const entryMatch = text.match(/Entry[:\s]*([^\n]+)/i);
+  if (entryMatch) {
+    metrics.entryType = entryMatch[1].trim();
+  }
+  
+  // Extract timeframe
+  const timeframeMatch = text.match(/(?:Entry|Setup Details)[:\s]*([^\n]*?)(?:\d+min|\d+hr|1min|5min|15min|30min|1hr|4hr)/i);
+  if (timeframeMatch) {
+    const timeframeText = text.match(/(\d+min(?:-\d+min)?(?:-\d+min)?(?:-\d+hr)?(?:-\d+hr)?)/i);
+    if (timeframeText) {
+      metrics.timeframe = timeframeText[1];
+    }
+  }
+  
+  // Extract setup type
+  const setupMatch = text.match(/Setup Details[:\s]*([^\n]+)/i);
+  if (setupMatch) {
+    const setupText = setupMatch[1].toLowerCase();
+    if (setupText.includes('bull flag')) metrics.setupType = 'Bull Flag';
+    else if (setupText.includes('bear flag')) metrics.setupType = 'Bear Flag';
+    else if (setupText.includes('retest')) metrics.setupType = 'Retest';
+    else if (setupText.includes('breakdown')) metrics.setupType = 'Breakdown';
+    else if (setupText.includes('breakout')) metrics.setupType = 'Breakout';
+    else if (setupText.includes('continuation')) metrics.setupType = 'Continuation';
+  }
+  
+  // Extract market condition
+  const conditionMatch = text.match(/(?:chop|choppy|volatile|trending|momentum|consolidation)/i);
+  if (conditionMatch) {
+    metrics.marketCondition = conditionMatch[0].charAt(0).toUpperCase() + conditionMatch[0].slice(1);
+  }
+  
+  return metrics;
+}
+
 function extractLessons(text: string): string[] {
   const lessons: string[] = [];
   
@@ -217,6 +304,7 @@ export function convertToJournalEntries(parsed: ParsedJournal[]): JournalEntry[]
     id: `journal-${Date.now()}-${index}`,
     date: entry.date,
     content: entry.rawContent,
+    quantMetrics: extractQuantMetrics(entry.rawContent),
     createdAt: new Date().toISOString()
   }));
 }

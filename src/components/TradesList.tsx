@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Edit, Trash2, Search, Image as ImageIcon, ChevronDown, ChevronRight, X } from 'lucide-react';
+import { Checkbox } from './ui/checkbox';
 import { PhotoGallery } from './PhotoGallery';
 import { PhotoPreview } from './PhotoPreview';
 import { Trade, TradeFormData, Account } from '../types/trade';
@@ -17,14 +18,19 @@ import { useForm } from 'react-hook-form@7.55.0';
 interface TradesListProps {
   trades: Trade[];
   onDeleteTrade: (id: string) => void;
-  onEditTrade: (trade: Trade) => void;
-  editingTrade: Trade | null;
+  onDeleteTrades?: (ids: string[]) => void; // Optional bulk delete function
+  onEditTrade?: (trade: Trade) => void; // Optional edit function
+  editingTrade?: Trade | null; // Optional editing trade
   onUpdateTrade: (trade: Trade) => void;
-  onCancelEdit: () => void;
+  onCancelEdit?: () => void; // Optional cancel edit
   accounts: Account[];
 }
 
-export function TradesList({ trades, onDeleteTrade, onEditTrade, editingTrade, onUpdateTrade, onCancelEdit, accounts }: TradesListProps) {
+export function TradesList({ trades, onDeleteTrade, onDeleteTrades, onEditTrade, editingTrade, onUpdateTrade, onCancelEdit, accounts }: TradesListProps) {
+  // Provide default implementations if not provided
+  const handleEditTrade = onEditTrade || (() => {});
+  const handleCancelEdit = onCancelEdit || (() => {});
+  const currentEditingTrade = editingTrade || null;
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'closed'>('all');
   const [assetTypeFilter, setAssetTypeFilter] = useState<'all' | 'stock' | 'futures' | 'options' | 'crypto' | 'forex'>('all');
@@ -33,6 +39,7 @@ export function TradesList({ trades, onDeleteTrade, onEditTrade, editingTrade, o
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
   const [galleryTitle, setGalleryTitle] = useState('');
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [selectedTrades, setSelectedTrades] = useState<Set<string>>(new Set());
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
@@ -57,25 +64,25 @@ export function TradesList({ trades, onDeleteTrade, onEditTrade, editingTrade, o
 
   // Populate form when editing a trade
   useEffect(() => {
-    if (editingTrade) {
-      setValue('date', editingTrade.date);
-      setValue('symbol', editingTrade.symbol);
-      setValue('assetType', editingTrade.assetType || 'stock');
-      setValue('type', editingTrade.type);
-      setValue('position', editingTrade.position);
-      setValue('quantity', editingTrade.quantity);
-      setValue('entryPrice', editingTrade.entryPrice);
-      setValue('exitPrice', editingTrade.exitPrice || undefined);
-      setValue('stopLoss', editingTrade.stopLoss || undefined);
-      setValue('targetPrice', editingTrade.targetPrice || undefined);
-      setValue('notes', editingTrade.notes || '');
-      setValue('contractType', editingTrade.contractType || undefined);
-      setValue('strategy', editingTrade.strategy || undefined);
-      setValue('riskAmount', editingTrade.riskAmount || undefined);
-      setTags(editingTrade.tags || []);
-      setPhotos(editingTrade.photos || []);
+    if (currentEditingTrade) {
+      setValue('date', currentEditingTrade.date);
+      setValue('symbol', currentEditingTrade.symbol);
+      setValue('assetType', currentEditingTrade.assetType || 'stock');
+      setValue('type', currentEditingTrade.type);
+      setValue('position', currentEditingTrade.position);
+      setValue('quantity', currentEditingTrade.quantity);
+      setValue('entryPrice', currentEditingTrade.entryPrice);
+      setValue('exitPrice', currentEditingTrade.exitPrice || undefined);
+      setValue('stopLoss', currentEditingTrade.stopLoss || undefined);
+      setValue('targetPrice', currentEditingTrade.targetPrice || undefined);
+      setValue('notes', currentEditingTrade.notes || '');
+      setValue('contractType', currentEditingTrade.contractType || undefined);
+      setValue('strategy', currentEditingTrade.strategy || undefined);
+      setValue('riskAmount', currentEditingTrade.riskAmount || undefined);
+      setTags(currentEditingTrade.tags || []);
+      setPhotos(currentEditingTrade.photos || []);
     }
-  }, [editingTrade, setValue]);
+  }, [currentEditingTrade, setValue]);
 
   const toggleRow = (tradeId: string) => {
     const newExpandedRows = new Set(expandedRows);
@@ -225,7 +232,7 @@ export function TradesList({ trades, onDeleteTrade, onEditTrade, editingTrade, o
   };
 
   const onSubmit = (data: TradeFormData) => {
-    if (!editingTrade) return;
+    if (!currentEditingTrade) return;
 
     const calculatedPnL = data.exitPrice 
       ? (() => {
@@ -243,7 +250,7 @@ export function TradesList({ trades, onDeleteTrade, onEditTrade, editingTrade, o
     const rMultiple = calculateRMultiple(calculatedPnL, riskAmount);
 
     const trade: Trade = {
-      ...editingTrade,
+      ...currentEditingTrade,
       date: data.date,
       symbol: data.symbol.toUpperCase(),
       assetType: data.assetType,
@@ -292,10 +299,66 @@ export function TradesList({ trades, onDeleteTrade, onEditTrade, editingTrade, o
     setGalleryOpen(true);
   };
 
+  const handleToggleSelect = (tradeId: string) => {
+    const newSelected = new Set(selectedTrades);
+    if (newSelected.has(tradeId)) {
+      newSelected.delete(tradeId);
+    } else {
+      newSelected.add(tradeId);
+    }
+    setSelectedTrades(newSelected);
+  };
+
+  const handleSelectAll = () => {
+    if (selectedTrades.size === filteredTrades.length) {
+      // Deselect all
+      setSelectedTrades(new Set());
+    } else {
+      // Select all filtered trades
+      setSelectedTrades(new Set(filteredTrades.map(t => t.id)));
+    }
+  };
+
+  const handleDeleteSelected = () => {
+    if (selectedTrades.size === 0) return;
+    
+    if (confirm(`Are you sure you want to delete ${selectedTrades.size} trade(s)? This action cannot be undone.`)) {
+      const idsToDelete = Array.from(selectedTrades);
+      
+      // Use bulk delete if available, otherwise delete one by one
+      if (onDeleteTrades) {
+        onDeleteTrades(idsToDelete);
+      } else {
+        // Fallback: delete one by one (may have issues with state updates)
+        idsToDelete.forEach(tradeId => {
+          onDeleteTrade(tradeId);
+        });
+      }
+      
+      setSelectedTrades(new Set());
+    }
+  };
+
+  const isAllSelected = filteredTrades.length > 0 && selectedTrades.size === filteredTrades.length;
+  const isIndeterminate = selectedTrades.size > 0 && selectedTrades.size < filteredTrades.length;
+
   return (
     <Card className="hover-lift">
       <CardHeader>
-        <CardTitle>Trades ({trades.length})</CardTitle>
+        <div className="flex items-center justify-between mb-4">
+          <CardTitle>Trades ({trades.length})</CardTitle>
+          {selectedTrades.size > 0 && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleDeleteSelected}
+              className="flex items-center gap-2"
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete Selected ({selectedTrades.size})
+            </Button>
+          )}
+        </div>
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -353,6 +416,13 @@ export function TradesList({ trades, onDeleteTrade, onEditTrade, editingTrade, o
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-12">
+                      <Checkbox
+                        checked={isAllSelected}
+                        onCheckedChange={handleSelectAll}
+                        className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                      />
+                    </TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Symbol</TableHead>
                     <TableHead>Account</TableHead>
@@ -383,6 +453,13 @@ export function TradesList({ trades, onDeleteTrade, onEditTrade, editingTrade, o
                     return (
                       <>
                         <TableRow key={trade.id}>
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedTrades.has(trade.id)}
+                              onCheckedChange={() => handleToggleSelect(trade.id)}
+                              className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                            />
+                          </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
                               <Button
@@ -512,7 +589,7 @@ export function TradesList({ trades, onDeleteTrade, onEditTrade, editingTrade, o
                               <Button 
                                 size="sm" 
                                 variant="ghost"
-                                onClick={() => onEditTrade(trade)}
+                                onClick={() => handleEditTrade(trade)}
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>
@@ -530,7 +607,7 @@ export function TradesList({ trades, onDeleteTrade, onEditTrade, editingTrade, o
                         {/* Expanded Details Row */}
                         {isExpanded && (
                           <TableRow key={`${trade.id}-details`} className="bg-muted/10">
-                            <TableCell colSpan={17} className="p-6">
+                            <TableCell colSpan={18} className="p-6">
                               <div className="space-y-6">
                                 {/* Trade Breakdown */}
                                 <div>
@@ -618,8 +695,13 @@ export function TradesList({ trades, onDeleteTrade, onEditTrade, editingTrade, o
                   <div key={trade.id} className="border rounded-lg bg-card transition-all duration-200 hover:shadow-[0_8px_32px_rgba(59,130,246,0.15)] dark:hover:shadow-[0_8px_32px_rgba(96,165,250,0.2)]">
                     {/* Card Header */}
                     <div className="p-4 space-y-3">
-                      {/* Top Row: Symbol, Date, Status */}
-                      <div className="flex items-start justify-between">
+                      {/* Top Row: Checkbox, Symbol, Date, Status */}
+                      <div className="flex items-start justify-between gap-2">
+                        <Checkbox
+                          checked={selectedTrades.has(trade.id)}
+                          onCheckedChange={() => handleToggleSelect(trade.id)}
+                          className="data-[state=checked]:bg-primary data-[state=checked]:border-primary mt-1"
+                        />
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
                             <span className="text-lg">{trade.symbol}</span>
@@ -878,7 +960,7 @@ export function TradesList({ trades, onDeleteTrade, onEditTrade, editingTrade, o
       />
 
       {/* Edit Trade Dialog */}
-      <Dialog open={!!editingTrade} onOpenChange={(open) => !open && onCancelEdit()}>
+      <Dialog open={!!currentEditingTrade} onOpenChange={(open) => !open && handleCancelEdit()}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Trade</DialogTitle>

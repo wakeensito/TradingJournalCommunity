@@ -107,15 +107,18 @@ const STRENGTH_SEVERITY: { [key in StrengthTag]: 'low' | 'med' | 'high' } = {
  * Detect behavioral tags from journal entry text
  * Uses Gemini AI when available, falls back to keyword matching
  */
-export async function detectTags(entry: JournalEntry, useGemini: boolean = false): Promise<DetectedTag[]> {
+export async function detectTags(entry: JournalEntry, useGemini: boolean = false): Promise<{ tags: DetectedTag[]; setupAnalysis?: import('../types/journal').SetupAnalysis }> {
   // Try Gemini first if enabled and API key is available
   if (useGemini && import.meta.env.VITE_GEMINI_API_KEY) {
     try {
-      const geminiTags = await analyzeJournalEntryWithGemini(entry.content);
-      if (geminiTags.length > 0) {
+      const geminiResult = await analyzeJournalEntryWithGemini(entry.content);
+      if (geminiResult.tags.length > 0) {
         // Merge with keyword matching for better coverage
         const keywordTags = detectTagsKeyword(entry);
-        return mergeTags(geminiTags, keywordTags);
+        return {
+          tags: mergeTags(geminiResult.tags, keywordTags),
+          setupAnalysis: geminiResult.setupAnalysis
+        };
       }
     } catch (error) {
       console.warn('Gemini analysis failed, falling back to keyword matching:', error);
@@ -123,7 +126,7 @@ export async function detectTags(entry: JournalEntry, useGemini: boolean = false
   }
   
   // Fallback to keyword matching
-  return detectTagsKeyword(entry);
+  return { tags: detectTagsKeyword(entry) };
 }
 
 /**
@@ -276,6 +279,87 @@ export function calculatePieChartData(entries: JournalEntry[]): {
 }
 
 /**
+ * Calculate common setup patterns from journal entries
+ */
+function calculateQuantMetrics(entries: JournalEntry[]): {
+  setupFrequency: { setup: string; count: number; percentage: number }[];
+  entryMethodFrequency: { method: string; count: number; percentage: number }[];
+  timeframeFrequency: { timeframe: string; count: number; percentage: number }[];
+  totalEntries: number;
+} {
+  const entriesWithMetrics = entries.filter(e => e.quantMetrics || e.setupAnalysis);
+  if (entriesWithMetrics.length === 0) {
+    return {
+      setupFrequency: [],
+      entryMethodFrequency: [],
+      timeframeFrequency: [],
+      totalEntries: 0
+    };
+  }
+  
+  // Collect setups from quantMetrics and setupAnalysis
+  const setups: string[] = [];
+  const entryMethods: string[] = [];
+  const timeframes: string[] = [];
+  
+  entriesWithMetrics.forEach(entry => {
+    // From quantMetrics
+    if (entry.quantMetrics?.setupType) {
+      setups.push(entry.quantMetrics.setupType);
+    }
+    if (entry.quantMetrics?.entryType) {
+      entryMethods.push(entry.quantMetrics.entryType);
+    }
+    if (entry.quantMetrics?.timeframe) {
+      timeframes.push(entry.quantMetrics.timeframe);
+    }
+    
+    // From setupAnalysis (AI)
+    if (entry.setupAnalysis?.entryMethod) {
+      entryMethods.push(entry.setupAnalysis.entryMethod);
+    }
+  });
+  
+  // Calculate frequencies
+  const setupCounts: Record<string, number> = {};
+  setups.forEach(s => setupCounts[s] = (setupCounts[s] || 0) + 1);
+  const setupFrequency = Object.entries(setupCounts)
+    .map(([setup, count]) => ({
+      setup,
+      count,
+      percentage: Math.round((count / setups.length) * 100 * 100) / 100
+    }))
+    .sort((a, b) => b.count - a.count);
+  
+  const entryMethodCounts: Record<string, number> = {};
+  entryMethods.forEach(m => entryMethodCounts[m] = (entryMethodCounts[m] || 0) + 1);
+  const entryMethodFrequency = Object.entries(entryMethodCounts)
+    .map(([method, count]) => ({
+      method,
+      count,
+      percentage: Math.round((count / entryMethods.length) * 100 * 100) / 100
+    }))
+    .sort((a, b) => b.count - a.count);
+  
+  const timeframeCounts: Record<string, number> = {};
+  timeframes.forEach(t => timeframeCounts[t] = (timeframeCounts[t] || 0) + 1);
+  const timeframeFrequency = Object.entries(timeframeCounts)
+    .map(([timeframe, count]) => ({
+      timeframe,
+      count,
+      percentage: Math.round((count / timeframes.length) * 100 * 100) / 100
+    }))
+    .sort((a, b) => b.count - a.count);
+  
+  return {
+    setupFrequency,
+    entryMethodFrequency,
+    timeframeFrequency,
+    totalEntries: entriesWithMetrics.length
+  };
+}
+
+/**
  * Generate daily plan based on recent journal entries
  */
 export function generateDailyPlan(entries: JournalEntry[], date: string): DailyPlan {
@@ -360,15 +444,17 @@ export async function analyzeJournalEntries(
   pieChartData: ReturnType<typeof calculatePieChartData>;
   averageProcessScore: number;
   weeklyPlan: DailyPlan;
+  quantMetrics: ReturnType<typeof calculateQuantMetrics>;
 }> {
   // Detect tags for all entries (async if using Gemini)
   const analyzedEntries = await Promise.all(
     entries.map(async (entry) => {
-      const detectedTags = await detectTags(entry, useGemini);
+      const result = await detectTags(entry, useGemini);
       return {
         ...entry,
-        detectedTags,
-        processScore: calculateProcessScore(detectedTags)
+        detectedTags: result.tags,
+        setupAnalysis: result.setupAnalysis || entry.setupAnalysis,
+        processScore: calculateProcessScore(result.tags)
       };
     })
   );
@@ -383,12 +469,14 @@ export async function analyzeJournalEntries(
     : new Date().toISOString().split('T')[0];
   
   const weeklyPlan = generateDailyPlan(analyzedEntries, latestDate);
+  const quantMetrics = calculateQuantMetrics(analyzedEntries);
   
   return {
     entries: analyzedEntries,
     pieChartData,
     averageProcessScore,
-    weeklyPlan
+    weeklyPlan,
+    quantMetrics
   };
 }
 

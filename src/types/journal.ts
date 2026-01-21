@@ -5,6 +5,27 @@
  * calculates process scores, and generates actionable daily plans.
  */
 
+export interface QuantMetrics {
+  positionSize?: string; // e.g., "1 NQ", "3 MNQ"
+  riskPoints?: number; // Risk in points
+  exitPoints?: number; // Exit in points
+  riskRewardRatio?: number; // R:R ratio
+  winLoss?: 'win' | 'loss' | 'breakeven' | 'unknown';
+  entryType?: string; // e.g., "Retest of key level", "Breakdown"
+  timeframe?: string; // e.g., "1min-5min", "15min-1hr"
+  setupType?: string; // e.g., "Bull flag", "Bear flag", "Retest"
+  marketCondition?: string; // e.g., "Choppy", "Trending", "Volatile"
+}
+
+export interface SetupAnalysis {
+  entryMethod?: string;
+  confirmationSignals?: string[];
+  levelTypes?: string[];
+  riskManagement?: string;
+  exitStrategy?: string;
+  improvements?: string[];
+}
+
 export interface JournalEntry {
   id: string;
   date: string; // ISO date string
@@ -12,6 +33,8 @@ export interface JournalEntry {
   tradeIds?: string[]; // Associated trade IDs
   detectedTags?: DetectedTag[];
   processScore?: number; // 0-100
+  quantMetrics?: QuantMetrics;
+  setupAnalysis?: SetupAnalysis;
   createdAt?: string;
 }
 

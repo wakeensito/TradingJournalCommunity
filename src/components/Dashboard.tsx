@@ -1,7 +1,22 @@
 import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, BarChart, Bar } from 'recharts';
+import { 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer, 
+  PieChart, 
+  Pie, 
+  Cell as RechartsCell, 
+  AreaChart, 
+  Area, 
+  BarChart, 
+  Bar 
+} from 'recharts';
 import { TrendingUp, TrendingDown, DollarSign, Target, Calendar, BarChart3, Flame, Clock, TrendingDown as TrendingDownIcon, Activity } from 'lucide-react';
 import { Trade } from '../types/trade';
 import { CalendarView } from './CalendarView';
@@ -9,10 +24,34 @@ import { JournalAnalysisCard } from './JournalAnalysisCard';
 
 interface DashboardProps {
   trades: Trade[];
+  onNavigateToJournal?: () => void;
 }
 
-export function Dashboard({ trades }: DashboardProps) {
+export function Dashboard({ trades, onNavigateToJournal }: DashboardProps) {
   const stats = useMemo(() => {
+    // Ensure trades is an array
+    if (!trades || !Array.isArray(trades)) {
+      return {
+        totalTrades: 0,
+        closedTrades: 0,
+        openTrades: 0,
+        totalPnL: 0,
+        winningTrades: 0,
+        losingTrades: 0,
+        winRate: 0,
+        avgWin: 0,
+        avgLoss: 0,
+        profitFactor: 0,
+        expectancy: 0,
+        avgRiskReward: 0,
+        tradesWithRR: 0,
+        avgDuration: 'N/A',
+        tradesWithDuration: 0,
+        currentStreak: 0,
+        streakType: 'none' as const
+      };
+    }
+    
     const closedTrades = trades.filter(trade => trade.status === 'closed');
     const totalPnL = closedTrades.reduce((sum, trade) => sum + (trade.pnl || 0), 0);
     const winningTrades = closedTrades.filter(trade => (trade.pnl || 0) > 0);
@@ -75,26 +114,37 @@ export function Dashboard({ trades }: DashboardProps) {
       : 0;
     const avgDurationFormatted = formatMinutesToDuration(avgDuration);
 
-    // Calculate current streak
-    const sortedClosedTrades = [...closedTrades].sort((a, b) => 
-      new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
+    // Calculate current streak (daily-based)
+    // Group trades by date and sum P&L per day
+    const dailyPnL = new Map<string, number>();
+    
+    closedTrades.forEach(trade => {
+      const date = trade.date; // Use date string as key
+      const currentPnL = dailyPnL.get(date) || 0;
+      dailyPnL.set(date, currentPnL + (trade.pnl || 0));
+    });
+    
+    // Convert to array of {date, pnl} and sort by date (most recent first)
+    const sortedDays = Array.from(dailyPnL.entries())
+      .map(([date, pnl]) => ({ date, pnl }))
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     
     let currentStreak = 0;
     let streakType: 'win' | 'loss' | 'none' = 'none';
     
-    if (sortedClosedTrades.length > 0) {
-      const firstTrade = sortedClosedTrades[0];
-      const isWin = (firstTrade.pnl || 0) > 0;
-      streakType = isWin ? 'win' : 'loss';
+    if (sortedDays.length > 0) {
+      const firstDay = sortedDays[0];
+      const isWinDay = firstDay.pnl > 0;
+      streakType = isWinDay ? 'win' : 'loss';
       
-      for (const trade of sortedClosedTrades) {
-        const tradeIsWin = (trade.pnl || 0) > 0;
-        if (tradeIsWin === isWin) {
-          currentStreak++;
-        } else {
+      // Count consecutive days with the same sign
+      for (const day of sortedDays) {
+        const dayIsWin = day.pnl > 0;
+        // Break streak if day is neutral (exactly 0) or different sign
+        if (day.pnl === 0 || dayIsWin !== isWinDay) {
           break;
         }
+        currentStreak++;
       }
     }
 
@@ -479,7 +529,7 @@ export function Dashboard({ trades }: DashboardProps) {
                         strokeWidth={0}
                       >
                         {pieData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
+                          <RechartsCell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
                     </PieChart>
@@ -559,7 +609,7 @@ export function Dashboard({ trades }: DashboardProps) {
                   radius={[4, 4, 0, 0]}
                 >
                   {tradeDistribution.map((entry, index) => (
-                    <Cell 
+                    <RechartsCell 
                       key={`cell-${index}`} 
                       fill={entry.pnl >= 0 ? '#22c55e' : '#ef4444'} 
                     />
@@ -572,7 +622,7 @@ export function Dashboard({ trades }: DashboardProps) {
       )}
 
       {/* Journal Analysis Card */}
-      <JournalAnalysisCard />
+      <JournalAnalysisCard onNavigateToJournal={onNavigateToJournal} />
 
       {/* Calendar View */}
       <CalendarView trades={trades} />

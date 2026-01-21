@@ -540,13 +540,19 @@ export function Gameplan() {
       
       yPos += 15;
       
-      // Date
+      // Date - Parse date string to avoid timezone issues
+      const formatDateString = (dateStr: string) => {
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const date = new Date(year, month - 1, day); // month is 0-indexed
+        return date.toLocaleDateString('en-US', { 
+          weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+        });
+      };
+      
       doc.setFontSize(10);
       doc.setTextColor(100, 116, 139);
       doc.setFont('helvetica', 'normal');
-      doc.text(`Date: ${new Date(selectedAnalysisDate).toLocaleDateString('en-US', { 
-        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
-      })}`, margin, yPos);
+      doc.text(`Date: ${formatDateString(selectedAnalysisDate)}`, margin, yPos);
       yPos += 10;
       
       // Market Bias

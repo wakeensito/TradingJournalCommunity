@@ -1,0 +1,39 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if user is authenticated and is who they say they are
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    // Match users collection and their journal entries
+    match /users/{userId}/journal/{entryId} {
+      // Allow read/write only if the authenticated user is the owner of the data
+      allow read, write: if isOwner(userId);
+    }
+    
+    // Match users collection and their trades
+    match /users/{userId}/trades/{tradeId} {
+      // Allow read/write only if the authenticated user is the owner of the data
+      allow read, write: if isOwner(userId);
+    }
+    
+    // Match users collection and their accounts
+    match /users/{userId}/accounts/{accountId} {
+      // Allow read/write only if the authenticated user is the owner of the data
+      allow read, write: if isOwner(userId);
+    }
+    
+    // Match users collection and their preferences
+    match /users/{userId}/preferences/{preferenceId} {
+      // Allow read/write only if the authenticated user is the owner of the data
+      allow read, write: if isOwner(userId);
+    }
+    
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
