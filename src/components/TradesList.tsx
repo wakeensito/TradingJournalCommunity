@@ -221,9 +221,22 @@ export function TradesList({ trades, onDeleteTrade, onDeleteTrades, onEditTrade,
         return;
       }
 
+      // Raster images only (excludes SVG/HTML, which can carry scripts)
+      if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)) {
+        alert('Only JPEG, PNG, WebP, or GIF images are allowed');
+        return;
+      }
+
       const reader = new FileReader();
       reader.onloadend = () => {
-        setPhotos(prev => [...prev, reader.result as string]);
+        // Cap photos per trade to keep documents under Firestore's size limit
+        setPhotos(prev => {
+          if (prev.length >= 5) {
+            alert('Maximum 5 photos per trade');
+            return prev;
+          }
+          return [...prev, reader.result as string];
+        });
       };
       reader.readAsDataURL(file);
     });

@@ -107,16 +107,23 @@ export function TradeEntry({ onAddTrade, accounts = [], selectedAccountId }: Tra
         return;
       }
 
-      // Check file type
-      if (!file.type.startsWith('image/')) {
-        setUploadError('Only image files are allowed');
+      // Check file type — raster images only (excludes SVG/HTML, which can carry scripts)
+      if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)) {
+        setUploadError('Only JPEG, PNG, WebP, or GIF images are allowed');
         return;
       }
 
       const reader = new FileReader();
       reader.onload = (e) => {
         const base64 = e.target?.result as string;
-        setPhotos(prev => [...prev, base64]);
+        // Cap photos per trade to keep documents under Firestore's size limit
+        setPhotos(prev => {
+          if (prev.length >= 5) {
+            setUploadError('Maximum 5 photos per trade');
+            return prev;
+          }
+          return [...prev, base64];
+        });
       };
       reader.readAsDataURL(file);
     });
