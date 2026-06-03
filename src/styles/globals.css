@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&display=swap');
 
 @custom-variant dark (&:is(.dark *));
 
@@ -416,25 +416,206 @@ input[type="number"]:focus {
 /* iOS specific optimizations */
 @supports (-webkit-touch-callout: none) {
   /* Target iOS devices specifically */
-  
+
   /* Prevent iOS zoom on focus */
   input, select, textarea {
     font-size: 16px !important;
   }
-  
+
   /* Smooth momentum scrolling */
   * {
     -webkit-overflow-scrolling: touch;
   }
-  
+
   /* Remove iOS tap highlight */
   * {
     -webkit-tap-highlight-color: transparent;
   }
-  
+
   /* Better touch targets */
   button, a, [role="button"] {
     min-height: 44px;
     min-width: 44px;
   }
+}
+
+/* ══════════════════════════════════════════════
+   DASHBOARD LUXURY TERMINAL DESIGN SYSTEM
+   ══════════════════════════════════════════════ */
+
+/* Display serif for hero numbers */
+.font-display {
+  font-family: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+}
+
+/* Film grain texture overlay */
+.dash-grain::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.025;
+  z-index: 1;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 200px 200px;
+}
+
+.dark .dash-grain::after {
+  opacity: 0.04;
+}
+
+/* Staggered entrance animations */
+@keyframes dashReveal {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes dashFadeScale {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes dashSlideRight {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes dashPulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+@keyframes dashGlow {
+  0%, 100% { box-shadow: 0 0 20px rgba(212, 168, 83, 0.05); }
+  50% { box-shadow: 0 0 40px rgba(212, 168, 83, 0.12); }
+}
+
+.dash-reveal {
+  animation: dashReveal 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.dash-reveal-1 { animation-delay: 0ms; }
+.dash-reveal-2 { animation-delay: 80ms; }
+.dash-reveal-3 { animation-delay: 160ms; }
+.dash-reveal-4 { animation-delay: 240ms; }
+.dash-reveal-5 { animation-delay: 320ms; }
+.dash-reveal-6 { animation-delay: 400ms; }
+
+.dash-fade-scale {
+  animation: dashFadeScale 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Hero ambient glow animation */
+.dash-hero-glow {
+  animation: dashGlow 4s ease-in-out infinite;
+}
+
+/* Thin amber accent line for card headers */
+.dash-accent-top {
+  position: relative;
+}
+
+.dash-accent-top::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 24px;
+  right: 24px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(212, 168, 83, 0.3), transparent);
+}
+
+/* Table row hover with left accent */
+.dash-table-row {
+  position: relative;
+  transition: background-color 0.15s ease;
+}
+
+.dash-table-row::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  border-radius: 1px;
+  background: rgba(212, 168, 83, 0);
+  transition: background 0.2s ease;
+}
+
+.dash-table-row:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.dash-table-row:hover::before {
+  background: rgba(212, 168, 83, 0.5);
+}
+
+/* Custom scrollbar for dashboard panels */
+.dash-scroll::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.dash-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dash-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+}
+
+.dash-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Metric card hover state */
+.dash-metric {
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.dash-metric:hover {
+  background-color: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Win rate ring glow */
+.dash-ring-glow {
+  filter: drop-shadow(0 0 8px rgba(212, 168, 83, 0.1));
+}
+
+/* Equity curve container glow */
+.dash-equity-glow {
+  position: relative;
+}
+
+.dash-equity-glow::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(212, 168, 83, 0.15), transparent);
 }
