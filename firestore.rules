@@ -7,31 +7,63 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == userId;
     }
 
-    // Match users collection and their journal entries
+    // Validate a trade document on write. Checks are CONDITIONAL on the field
+    // being present (field-present => correct type), so legitimate writes with
+    // missing optional fields — or future new fields — are never rejected.
+    // Firestore rules cannot measure total document bytes, so we cap array
+    // lengths and the field count instead to limit abuse.
+    function isValidTrade() {
+      let d = request.resource.data;
+      return d.keys().size() < 60
+        && (!('date' in d)        || d.date is string)
+        && (!('symbol' in d)      || d.symbol is string)
+        && (!('status' in d)      || d.status in ['open', 'closed'])
+        && (!('pnl' in d)         || d.pnl is number)
+        && (!('quantity' in d)    || d.quantity is number)
+        && (!('entryPrice' in d)  || d.entryPrice is number)
+        && (!('exitPrice' in d)   || d.exitPrice is number)
+        && (!('photos' in d)      || (d.photos is list && d.photos.size() <= 6))
+        && (!('tags' in d)        || (d.tags is list && d.tags.size() <= 50));
+    }
+
+    // Validate an account document on write (same conditional-check approach).
+    function isValidAccount() {
+      let d = request.resource.data;
+      return d.keys().size() < 30
+        && (!('name' in d)        || d.name is string)
+        && (!('propFirm' in d)    || d.propFirm is string)
+        && (!('accountSize' in d) || d.accountSize is number)
+        && (!('accountType' in d) || d.accountType in ['eval', 'funded'])
+        && (!('status' in d)      || d.status in ['active', 'passed', 'failed', 'archived']);
+    }
+
+    // Journal entries — owner-only, with a field-count ceiling.
     match /users/{userId}/journal/{entryId} {
-      // Allow read/write only if the authenticated user is the owner of the data
-      allow read, write: if isOwner(userId);
+      allow read, delete: if isOwner(userId);
+      allow create, update: if isOwner(userId)
+        && request.resource.data.keys().size() < 60;
     }
-    
-    // Match users collection and their trades
+
+    // Trades — owner-only read/delete; validated create/update.
     match /users/{userId}/trades/{tradeId} {
-      // Allow read/write only if the authenticated user is the owner of the data
-      allow read, write: if isOwner(userId);
+      allow read, delete: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isValidTrade();
     }
-    
-    // Match users collection and their accounts
+
+    // Accounts — owner-only read/delete; validated create/update.
     match /users/{userId}/accounts/{accountId} {
-      // Allow read/write only if the authenticated user is the owner of the data
-      allow read, write: if isOwner(userId);
+      allow read, delete: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isValidAccount();
     }
-    
-    // Match users collection and their preferences
+
+    // Preferences — owner-only, with a field-count ceiling.
     match /users/{userId}/preferences/{preferenceId} {
-      // Allow read/write only if the authenticated user is the owner of the data
-      allow read, write: if isOwner(userId);
+      allow read, delete: if isOwner(userId);
+      allow create, update: if isOwner(userId)
+        && request.resource.data.keys().size() < 30;
     }
-    
-    // Default deny
+
+    // Default deny everything else.
     match /{document=**} {
       allow read, write: if false;
     }
