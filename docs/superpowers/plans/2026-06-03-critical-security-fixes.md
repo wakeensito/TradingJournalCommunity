@@ -8,7 +8,7 @@
 
 **Tech Stack:** React 18 + TypeScript, Vite, Firebase (Firestore client SDK + optional Cloud Functions), Google Gemini REST API.
 
-**Status:** Tasks 1 (C3) and 2 (C2) were applied directly in the review session; their steps are marked done and serve as the record. Tasks 3–5 are open.
+**Status:** Tasks 1 (C3), 2 (C2), 3 (H5), and 4 (H3) are implemented and committed. Task 5 (C1 — Gemini proxy) is open and requires a Cloud Function + deploy.
 
 ---
 
@@ -107,7 +107,7 @@ git commit -m "security: raster-only MIME allowlist and 5-photo cap on uploads (
 
 ---
 
-### Task 3: H5 — Crash-proof localStorage reads (open)
+### Task 3: H5 — Crash-proof localStorage reads ✅ (done)
 
 **Files:**
 - Modify: `src/App.tsx:22-25`
@@ -151,7 +151,7 @@ git commit -m "fix: crash-proof localStorage JSON reads (H5)"
 
 ---
 
-### Task 4: H3 — Persist account deletion to Firestore (open)
+### Task 4: H3 — Persist account deletion to Firestore ✅ (done)
 
 **Files:**
 - Modify: `src/services/tradeStorage.ts` (add `deleteAccount`)
