@@ -343,6 +343,33 @@ export async function saveAccounts(accounts: Account[]): Promise<void> {
 }
 
 /**
+ * Delete a single account document from Firebase (Firebase only).
+ * Does NOT delete the account's trades — callers handle those separately
+ * (e.g. via deleteTrades). saveAccounts only upserts, so deletion must be
+ * explicit or the document survives and reappears on next load.
+ */
+export async function deleteAccount(accountId: string): Promise<void> {
+  if (!(await isFirebaseAvailable())) {
+    throw new Error('Firebase is not available');
+  }
+
+  const { doc, deleteDoc } = await import('firebase/firestore');
+  const { initializeFirebase } = await import('./firebase');
+  const { db, auth } = await initializeFirebase();
+
+  if (!db || !auth) {
+    throw new Error('Firebase not initialized');
+  }
+  if (!auth.currentUser) {
+    throw new Error('No authenticated user, cannot delete account from Firebase');
+  }
+
+  const userId = auth.currentUser.uid;
+  await deleteDoc(doc(db, 'users', userId, 'accounts', accountId));
+  console.log(`[deleteAccount] Deleted account ${accountId} from Firebase`);
+}
+
+/**
  * Load selected account ID from Firebase (Firebase only)
  */
 export async function loadSelectedAccountId(): Promise<string | null> {

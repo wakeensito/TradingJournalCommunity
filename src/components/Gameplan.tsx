@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { readJSON, writeJSON } from '../lib/storage';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Button } from './ui/button';
@@ -128,10 +129,9 @@ export function Gameplan() {
   const [selectedAnalysisDate, setSelectedAnalysisDate] = useState(() => {
     return new Date().toISOString().split('T')[0];
   });
-  const [dailyAnalyses, setDailyAnalyses] = useState<Record<string, DailyAnalysis>>(() => {
-    const saved = localStorage.getItem('tradingJournal_dailyAnalyses');
-    return saved ? JSON.parse(saved) : {};
-  });
+  const [dailyAnalyses, setDailyAnalyses] = useState<Record<string, DailyAnalysis>>(
+    () => readJSON('tradingJournal_dailyAnalyses', {} as Record<string, DailyAnalysis>)
+  );
 
   const currentAnalysis: DailyAnalysis = dailyAnalyses[selectedAnalysisDate] || {
     date: selectedAnalysisDate,
@@ -170,10 +170,9 @@ export function Gameplan() {
   };
 
   // Weekly Gameplan State
-  const [weeklyGameplans, setWeeklyGameplans] = useState<Record<string, WeeklyGameplan>>(() => {
-    const saved = localStorage.getItem('tradingJournal_weeklyGameplans');
-    return saved ? JSON.parse(saved) : {};
-  });
+  const [weeklyGameplans, setWeeklyGameplans] = useState<Record<string, WeeklyGameplan>>(
+    () => readJSON('tradingJournal_weeklyGameplans', {} as Record<string, WeeklyGameplan>)
+  );
 
   const getCurrentWeekStart = () => {
     const today = new Date();
@@ -195,11 +194,11 @@ export function Gameplan() {
 
   // Save to localStorage
   useEffect(() => {
-    localStorage.setItem('tradingJournal_dailyAnalyses', JSON.stringify(dailyAnalyses));
+    writeJSON('tradingJournal_dailyAnalyses', dailyAnalyses);
   }, [dailyAnalyses]);
 
   useEffect(() => {
-    localStorage.setItem('tradingJournal_weeklyGameplans', JSON.stringify(weeklyGameplans));
+    writeJSON('tradingJournal_weeklyGameplans', weeklyGameplans);
   }, [weeklyGameplans]);
 
   // Daily Analysis Handlers

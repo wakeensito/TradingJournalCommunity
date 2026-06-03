@@ -9,6 +9,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { JournalAnalysis } from './components/JournalAnalysis';
 import { FloatingMIA } from './components/FloatingMIA';
 import { Trade, Account } from './types/trade';
+import { readJSON, writeJSON } from './lib/storage';
 import { TrendingUp, Menu, X, LogOut, MessageCircle } from 'lucide-react';
 import { ThemeToggle } from './components/ThemeToggle';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './components/ui/select';
@@ -19,10 +20,7 @@ import { LandingPage } from './components/LandingPage';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './components/ui/dialog';
 
 export default function App() {
-  const [darkMode, setDarkMode] = useState(() => {
-    const saved = localStorage.getItem('darkMode');
-    return saved !== null ? JSON.parse(saved) : true;
-  });
+  const [darkMode, setDarkMode] = useState(() => readJSON('darkMode', true));
 
   const [isAuthenticated, setIsAuthenticated] = useState(false); // Default to false
   const [user, setUser] = useState<any>(null); // Track user object
@@ -141,7 +139,7 @@ export default function App() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem('darkMode', JSON.stringify(darkMode));
+    writeJSON('darkMode', darkMode);
     // Apply dark mode to document
     if (darkMode) {
       document.documentElement.classList.add('dark');
@@ -578,19 +576,37 @@ export default function App() {
     });
   };
 
-  const deleteAccount = (id: string) => {
-    setAccounts(accounts.filter(account => account.id !== id));
-    // Remove trades associated with this account
-    setTrades(trades.filter(trade => trade.accountId !== id));
-    // Clear selection if deleted account was selected
-    if (selectedAccountId === id) {
-      setSelectedAccountId(null);
+  const deleteAccount = async (id: string) => {
+    // Delete the account's trades from Firebase + state first (reuses the
+    // Firestore-aware delete path so docs are actually removed).
+    const tradeIds = trades.filter(trade => trade.accountId === id).map(trade => trade.id);
+    if (tradeIds.length > 0) {
+      await deleteTrades(tradeIds);
     }
+
+    // Delete the account document itself — saveAccounts only upserts, so
+    // without this the account would reappear on the next load.
+    if (isAuthenticated && authChecked) {
+      try {
+        const { deleteAccount: deleteAccountDoc } = await import('./services/tradeStorage');
+        await deleteAccountDoc(id);
+      } catch (error) {
+        console.error('[App] Error deleting account from Firebase:', error);
+        alert('Failed to delete account from the server. It may reappear on reload.');
+      }
+    }
+
+    // Update state functionally (avoid stale-closure filtering).
+    setAccounts(prevAccounts => prevAccounts.filter(account => account.id !== id));
+    setSelectedAccountId(prev => (prev === id ? null : prev));
   };
 
-  const resetAccountPnL = (accountId: string) => {
-    // Remove all trades for this account
-    setTrades(trades.filter(trade => trade.accountId !== accountId));
+  const resetAccountPnL = async (accountId: string) => {
+    // Remove all trades for this account from Firebase + state.
+    const tradeIds = trades.filter(trade => trade.accountId === accountId).map(trade => trade.id);
+    if (tradeIds.length > 0) {
+      await deleteTrades(tradeIds);
+    }
   };
 
   // Calculate stats for a specific account
