@@ -217,7 +217,7 @@ function MistakeCost({ trades, band, net, onLog }: { trades: Trade[]; band: numb
   return (
     <section className="card p-4 md:p-5" aria-labelledby="mistake-cost">
       <h2 id="mistake-cost" className="caption">
-        Cost of mistakes
+        Tagged mistakes · net
       </h2>
       {rows.length === 0 ? (
         <div className="mt-3">
