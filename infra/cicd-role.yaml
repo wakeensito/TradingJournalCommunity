@@ -142,6 +142,12 @@ Resources:
                   - lambda:DeleteFunctionConcurrency
                 Resource:
                   - !Sub 'arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${AppStackName}-*'
+              # CreateFunction/UpdateFunctionConfiguration resolve each attached layer. The app pins
+              # the AWS-owned public Powertools layer (template.yaml Globals), so read that one only.
+              - Sid: AppPowertoolsLayer
+                Effect: Allow
+                Action: lambda:GetLayerVersion
+                Resource: !Sub 'arn:${AWS::Partition}:lambda:${AWS::Region}:017000801446:layer:AWSLambdaPowertoolsPythonV3-*'
               - Sid: AppTable
                 Effect: Allow
                 Action:
