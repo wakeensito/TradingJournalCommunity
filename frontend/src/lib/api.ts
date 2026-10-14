@@ -2,7 +2,7 @@
 
 import { getAccessToken, AuthError } from './auth';
 import { getConfig } from './config';
-import type { Account, Bootstrap, DayNote, Settings, Trade } from './types';
+import type { Account, AdminUser, Bootstrap, DayNote, Settings, Trade } from './types';
 
 export class ApiError extends Error {
   status: number;
@@ -84,6 +84,26 @@ export const api = {
 
   coach: (from: string, to: string, question?: string) =>
     send<{ text: string }>('POST', '/ai/coach', question ? { from, to, question } : { from, to }),
+
+  // Admins only (403 otherwise). Temporary passwords come back once and are never stored.
+  admin: {
+    listUsers: () => send<AdminUser[]>('GET', '/admin/users'),
+    invite: (email: string, admin: boolean) =>
+      send<{ user: AdminUser; temporaryPassword: string }>('POST', '/admin/users', { email, admin }),
+    disable: (username: string) => send<{ user: AdminUser }>('POST', `/admin/users/${enc(username)}/disable`),
+    enable: (username: string) => send<{ user: AdminUser }>('POST', `/admin/users/${enc(username)}/enable`),
+    resetPassword: (username: string) =>
+      send<{ user: AdminUser; temporaryPassword: string }>('POST', `/admin/users/${enc(username)}/reset-password`),
+    resendInvite: (username: string) =>
+      send<{ user: AdminUser; temporaryPassword: string }>('POST', `/admin/users/${enc(username)}/resend`),
+    setAdmin: (username: string, admin: boolean) =>
+      send<{ user: AdminUser }>('POST', `/admin/users/${enc(username)}/admin`, { admin }),
+    remove: (username: string, purge: boolean) =>
+      send<{ deleted: boolean; purged: { items: number; photos: number } }>(
+        'DELETE',
+        `/admin/users/${enc(username)}${purge ? '?purge=true' : ''}`,
+      ),
+  },
 };
 
 /** PUT a file to a presigned S3 URL. */

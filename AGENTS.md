@@ -37,7 +37,8 @@ npm run dev                          # :5173; needs scripts/dev-config.sh once (
 
 # Deploy (default AWS profile ONLY, us-east-1, stack `tradejournal`)
 scripts/deploy.sh                    # sam deploy + SPA upload + config.json + invalidation
-scripts/create-user.sh <email>       # admin-only signup; prints a temp password
+scripts/create-user.sh <email>       # admin-only signup; prints a temp password (or invite in-app: Settings → People)
+scripts/make-admin.sh <email>        # add a user to the Cognito `admin` group (seed the first admin)
 
 # E2E (against the deployed URL; CI normally runs this)
 E2E_BASE_URL=... E2E_EMAIL=... E2E_PASSWORD=... npm run e2e

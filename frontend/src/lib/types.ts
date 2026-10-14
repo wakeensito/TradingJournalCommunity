@@ -85,3 +85,18 @@ export const DEFAULT_SETTINGS: Settings = {
   mistakes: ['FOMO entry', 'Moved stop', 'Oversized', 'Early exit', 'Revenge trade', 'No plan'],
   recentSymbols: ['MNQ', 'MES'],
 };
+
+/** A Cognito user as the admin API returns it (GET /api/admin/users). Admins only. */
+export interface AdminUser {
+  /** Cognito username (a GUID in this pool — users sign in with their email). */
+  username: string;
+  email: string;
+  /** Cognito UserStatus: CONFIRMED, FORCE_CHANGE_PASSWORD (invited, never signed in), RESET_REQUIRED, … */
+  status: string;
+  enabled: boolean;
+  createdAt: string | null;
+  lastModified: string | null;
+  isAdmin: boolean;
+  /** The caller's own row: no disable / delete / demote / admin-reset. */
+  isSelf: boolean;
+}

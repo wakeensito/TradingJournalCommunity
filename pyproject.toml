@@ -10,7 +10,7 @@ dev = [
   # Matches the AWS-owned Powertools layer pinned in template.yaml (arm64, py3.13, layer v36 = 3.31.1).
   "aws-lambda-powertools==3.31.1",
   "boto3>=1.40",
-  "moto[dynamodb,s3]>=5.1",
+  "moto[cognitoidp,dynamodb,s3]>=5.1",
   "pytest>=8.4",
   "ruff==0.16.5",
 ]

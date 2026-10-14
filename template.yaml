@@ -25,6 +25,14 @@ Parameters:
       SSM SecureString NAME (no leading slash) holding the FMP API key. Shared with ClearVest, so it shares
       that quota. If missing, economic events beyond Forex Factory's two weeks come back as "unavailable".
       Must match FmpKeyParam on the tradejournal-cicd stack (the permissions boundary scopes to it).
+  AppUrl:
+    Type: String
+    Default: https://dc1cprzv21d8m.cloudfront.net
+    AllowedPattern: ^https://\S+$
+    Description: >-
+      Public app URL for the Cognito invite email. A parameter, not the distribution's domain, because the user pool
+      can't reference CloudFront (Distribution → HttpApi → JWT authorizer → UserPool would be a cycle).
+      Keep it equal to the AppUrl stack output.
 
 Globals:
   Function:
@@ -136,7 +144,16 @@ Resources:
       AutoVerifiedAttributes: [email]
       MfaConfiguration: "OFF"
       AdminCreateUserConfig:
-        AllowAdminCreateUserOnly: true   # no public sign-up; scripts/create-user.sh
+        AllowAdminCreateUserOnly: true   # no public sign-up; admins invite from Settings → People
+        # Cognito requires both {username} and {####} (the temporary password) in this message.
+        InviteMessageTemplate:
+          EmailSubject: You're invited to Trading Journal
+          EmailMessage: !Sub >-
+            You've been invited to Trading Journal.<br><br>
+            Open ${AppUrl} and sign in with:<br>
+            Email: {username}<br>
+            Temporary password: {####}<br><br>
+            You'll choose your own password the first time you sign in. The temporary password expires in 7 days.
       Schema:
         - { Name: email, Required: true, Mutable: true }
       Policies:
@@ -149,6 +166,14 @@ Resources:
           TemporaryPasswordValidityDays: 7
       AccountRecoverySetting:
         RecoveryMechanisms: [{ Name: verified_email, Priority: 1 }]
+
+  # Members manage people in-app (Settings → People) via AdminFunction. Seed the first one with scripts/make-admin.sh.
+  AdminGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      GroupName: admin
+      Description: Can invite, disable and remove users in the app
+      UserPoolId: !Ref UserPool
 
   UserPoolClient:
     Type: AWS::Cognito::UserPoolClient
@@ -264,6 +289,84 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /api/market/bars
             Method: GET
+
+  # In-app user management (Settings → People). Its own function so only this role holds Cognito admin rights;
+  # the handler also requires `admin` in the caller's cognito:groups claim. More specific than /api/{proxy+}.
+  AdminLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-${Stage}-admin
+      RetentionInDays: 30
+
+  AdminFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-${Stage}-admin
+      CodeUri: backend/functions/admin/
+      Handler: app.lambda_handler
+      MemorySize: 256
+      LoggingConfig:
+        LogGroup: !Ref AdminLogGroup
+      Environment:
+        Variables:
+          USER_POOL_ID: !Ref UserPool
+          TABLE_NAME: !Ref JournalTable
+          PHOTO_BUCKET: !Ref PhotoBucket
+          POWERTOOLS_SERVICE_NAME: tradejournal-admin
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - cognito-idp:ListUsers
+                - cognito-idp:ListUsersInGroup
+                - cognito-idp:AdminGetUser
+                - cognito-idp:AdminCreateUser
+                - cognito-idp:AdminDeleteUser
+                - cognito-idp:AdminDisableUser
+                - cognito-idp:AdminEnableUser
+                - cognito-idp:AdminSetUserPassword
+                - cognito-idp:AdminUserGlobalSignOut
+                - cognito-idp:AdminAddUserToGroup
+                - cognito-idp:AdminRemoveUserFromGroup
+              Resource: !GetAtt UserPool.Arn
+            # Purge: Query the target's USER#<sub> partition, then batch-delete it.
+            - Effect: Allow
+              Action: [dynamodb:Query, dynamodb:BatchWriteItem, dynamodb:DeleteItem]
+              Resource: !GetAtt JournalTable.Arn
+            - Effect: Allow
+              Action: s3:ListBucket
+              Resource: !GetAtt PhotoBucket.Arn
+              Condition:
+                StringLike:
+                  s3:prefix: [users/*]
+            - Effect: Allow
+              Action: s3:DeleteObject
+              Resource: !Sub ${PhotoBucket.Arn}/users/*
+      Events:
+        ListUsers:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/admin/users
+            Method: GET
+        InviteUser:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/admin/users
+            Method: POST
+        UserAction:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/admin/users/{username}/{action}
+            Method: POST
+        DeleteUser:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/admin/users/{username}
+            Method: DELETE
 
   HttpApi:
     Type: AWS::Serverless::HttpApi

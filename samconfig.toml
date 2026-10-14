@@ -18,4 +18,4 @@ capabilities = "CAPABILITY_IAM"
 resolve_s3 = true
 confirm_changeset = false
 fail_on_empty_changeset = false
-parameter_overrides = "Stage=prod"
+parameter_overrides = "Stage=prod AppUrl=https://dc1cprzv21d8m.cloudfront.net"
