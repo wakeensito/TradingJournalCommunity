@@ -10,7 +10,7 @@
 
   --ink-1: #e8edf6;
   --ink-2: #a3adc2;
-  --ink-3: #6b7590;
+  --ink-3: #808aa3; /* AA: ≥ 4.9:1 on every dark surface (was #6b7590, 3.7–4.3:1) */
   --ink-4: #454e66;
 
   --line: rgba(148, 163, 194, 0.1);
@@ -36,7 +36,7 @@
 
   --ink-1: #0d1324;
   --ink-2: #4a5568;
-  --ink-3: #7a8599;
+  --ink-3: #5a667b; /* AA: ≥ 5:1 on every light surface (was #7a8599, 3.2–3.7:1) */
   --ink-4: #aab3c2;
 
   --line: rgba(13, 19, 36, 0.08);
@@ -44,10 +44,11 @@
   --line-strong: rgba(13, 19, 36, 0.14);
 
   --brand: #2563eb;
-  --gain: #16a34a;
-  --loss: #dc2626;
-  --flat: #64748b;
-  --warn: #d97706;
+  /* Light P&L/warn are the same hues, one step deeper, so 14px numbers pass AA on white and inset (≥ 4.6:1). */
+  --gain: #147a3a;
+  --loss: #c42020;
+  --flat: #5d6b80;
+  --warn: #a14a08;
 
   --scrim: rgba(13, 19, 36, 0.35);
   --sheet-shadow: 0 -8px 32px rgba(13, 19, 36, 0.18);

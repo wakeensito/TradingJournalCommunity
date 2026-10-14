@@ -218,7 +218,7 @@ export function SignIn() {
             </button>
           )}
         </form>
-        <p className="mt-4 text-center text-caption text-ink-4">Accounts are invite-only.</p>
+        <p className="mt-4 text-center text-caption text-ink-3">Accounts are invite-only.</p>
       </div>
     </main>
   );

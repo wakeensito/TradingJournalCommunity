@@ -61,6 +61,8 @@ const enc = encodeURIComponent;
 
 export const api = {
   health: () => send<{ ok: boolean }>('GET', '/health', undefined, false),
+  /** Generic authed GET (path relative to the API base). Used by the market module, which parses defensively. */
+  get: (path: string) => send<unknown>('GET', path),
   bootstrap: () => send<Bootstrap>('GET', '/bootstrap'),
 
   putTrade: (t: Trade) => send<Trade>('PUT', `/trades/${enc(t.id)}`, t),

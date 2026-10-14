@@ -9,6 +9,8 @@ import { SessionTape } from '../ui/SessionTape';
 import { longDayLabel } from '../app/domain';
 import { useAppUi } from '../app/ui-context';
 import { CloseDayCard, PlanCard, TradeList } from './DayParts';
+import { MarketContextStrip } from './market';
+import { api } from '../lib/api';
 
 export function DaySheet({ date, onClose }: { date: string | null; onClose: () => void }) {
   if (!date) return null;
@@ -25,8 +27,8 @@ function DaySheetInner({ date, onClose }: { date: string; onClose: () => void })
 
   return (
     <Sheet open onClose={onClose} title={longDayLabel(date)} testId="day-sheet">
-      {/* MOUNT: market context — MarketContextStrip for this day goes here (top of the sheet). */}
       <div className="flex flex-col gap-5">
+        <MarketContextStrip apiGet={api.get} date={date} maxEvents={3} className="-mb-2" />
         <div>
           <div className="flex items-end justify-between gap-3">
             <Money value={stats.net} flatBand={band} className="text-hero-sm" />

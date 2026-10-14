@@ -142,7 +142,8 @@ export function SegmentedControl<T extends string>({
             tabIndex={tabbable ? 0 : -1}
             onClick={() => onChange(o.value)}
             className={cx(
-              'min-w-0 truncate rounded-full border font-medium transition-colors duration-[120ms]',
+              // The ::after reaches the track's 3px padding so the whole 44px track height is tappable.
+              "relative min-w-0 rounded-full border font-medium transition-colors duration-[120ms] after:absolute after:inset-x-0 after:-inset-y-[4px] after:content-['']",
               size === 'md' ? 'min-h-[38px] px-3' : 'min-h-[30px] px-2 text-caption max-md:min-h-[38px]',
               active
                 ? cx(
@@ -152,7 +153,7 @@ export function SegmentedControl<T extends string>({
                 : 'border-transparent text-ink-3 hover:text-ink-1',
             )}
           >
-            {o.label}
+            <span className="block truncate">{o.label}</span>
           </button>
         );
       })}
@@ -195,7 +196,7 @@ export function Chip({
           type="button"
           aria-label={`Remove ${typeof children === 'string' ? children : ''}`}
           onClick={onRemove}
-          className="grid h-full w-8 place-items-center rounded-r-control text-ink-3 hover:text-loss"
+          className="relative grid h-full w-9 place-items-center rounded-r-control text-ink-3 after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-[''] hover:text-loss"
         >
           <X size={14} />
         </button>
@@ -208,7 +209,8 @@ export function Chip({
       aria-pressed={selected}
       onClick={onClick}
       className={cx(
-        'inline-flex h-9 max-w-full shrink-0 items-center gap-1.5 rounded-control border px-3 text-body whitespace-nowrap transition-colors duration-[120ms] md:h-8',
+        // 36px visible (32 on desktop); the ::after pad makes the touch target 44px without bloating chip grids.
+        "relative inline-flex h-9 max-w-full min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-control border px-3 text-body whitespace-nowrap transition-colors duration-[120ms] after:absolute after:inset-x-0 after:-inset-y-1 after:content-[''] md:h-8 md:after:hidden",
         selected ? sel : 'border-line bg-inset text-ink-2 hover:border-line-strong hover:text-ink-1',
         className,
       )}
@@ -308,13 +310,14 @@ export function Stepper({
   const n = parseDecimal(value) ?? 0;
   const set = (x: number) => onChange(String(Math.max(min, Math.round(x * 1000) / 1000)));
   return (
-    <div className="grid h-11 grid-cols-[44px_minmax(0,1fr)_44px] overflow-hidden rounded-control border border-line bg-inset focus-within:border-[color-mix(in_oklab,var(--brand)_60%,transparent)]">
+    // Children overhang the 1px border (-my-px) so every part is a full 44px target; no overflow-hidden needed.
+    <div className="grid h-11 grid-cols-[44px_minmax(0,1fr)_44px] rounded-control border border-line bg-inset focus-within:border-[color-mix(in_oklab,var(--brand)_60%,transparent)]">
       <button
         type="button"
         aria-label={`Decrease ${label}`}
         disabled={n <= min}
         onClick={() => set(n - 1)}
-        className="grid place-items-center text-ink-2 hover:bg-surface-2 hover:text-ink-1 disabled:text-ink-4 disabled:hover:bg-transparent"
+        className="-my-px -ml-px grid place-items-center rounded-l-control text-ink-2 hover:bg-surface-2 hover:text-ink-1 disabled:text-ink-4 disabled:hover:bg-transparent"
       >
         <Minus size={16} />
       </button>
@@ -326,13 +329,13 @@ export function Stepper({
         value={value}
         onChange={(e) => onChange(e.target.value.replace(/[^0-9.]/g, ''))}
         onFocus={(e) => e.currentTarget.select()}
-        className="num min-w-0 border-x border-line bg-transparent text-center text-input focus-visible:shadow-none"
+        className="num -my-px min-w-0 border-x border-line bg-transparent text-center text-input focus-visible:shadow-none"
       />
       <button
         type="button"
         aria-label={`Increase ${label}`}
         onClick={() => set(n + 1)}
-        className="grid place-items-center text-ink-2 hover:bg-surface-2 hover:text-ink-1"
+        className="-my-px -mr-px grid place-items-center rounded-r-control text-ink-2 hover:bg-surface-2 hover:text-ink-1"
       >
         <Plus size={16} />
       </button>

@@ -202,6 +202,6 @@ function QuickLogInner({ date, onClose }: { date: string | null; onClose: () => 
 
 function DetailSummary({ setup, mistakes, note, photos }: { setup: string | null; mistakes: number; note: boolean; photos: number }) {
   const parts = [setup, mistakes ? `${mistakes} mistake${mistakes > 1 ? 's' : ''}` : null, note ? 'note' : null, photos ? `${photos} screenshot${photos > 1 ? 's' : ''}` : null].filter(Boolean);
-  if (!parts.length) return <span className="text-ink-4"> · setup, mistakes, note, screenshot</span>;
+  if (!parts.length) return <span className="text-ink-3"> · setup, mistakes, note, screenshot</span>;
   return <span className="text-ink-3"> · {parts.join(', ')}</span>;
 }

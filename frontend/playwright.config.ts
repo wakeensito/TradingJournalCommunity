@@ -5,6 +5,8 @@ const baseURL = process.env.E2E_BASE_URL ?? 'http://localhost:5173';
 
 export default defineConfig({
   testDir: './e2e',
+  // e2e/mocked runs backend-free via playwright.mock.config.ts.
+  testIgnore: ['mocked/**'],
   timeout: 45_000,
   expect: { timeout: 10_000 },
   // One shared account: run serially so tests don't race each other's data.

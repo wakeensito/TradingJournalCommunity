@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Check, ChevronDown, Pencil } from 'lucide-react';
+import { CalendarClock, Check, ChevronDown, Pencil } from 'lucide-react';
 import type { DayNote, Trade } from '../lib/types';
 import { useData, useStore } from '../lib/store';
 import { netPnl } from '../lib/pnl';
@@ -8,6 +8,9 @@ import { Button, Chip, Field, SegmentedControl, TextInput, cx } from '../ui/cont
 import { Money } from '../ui/Money';
 import { time12 } from '../app/domain';
 import { useToast } from '../ui/Toast';
+import { api } from '../lib/api';
+import { todayLocal } from '../lib/dates';
+import { eventsForPlan, useMarketDay } from './market';
 
 // ---------- trade rows ----------
 
@@ -162,7 +165,7 @@ function CloseDayForm({ date, existing, onDone }: { date: string; existing?: Day
           enterKeyHint="done"
         />
       </Field>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4">
         <div className="flex flex-col gap-1.5">
           <span className="caption">Followed plan</span>
           <SegmentedControl
@@ -179,10 +182,14 @@ function CloseDayForm({ date, existing, onDone }: { date: string; existing?: Day
           <span className="caption">Mood</span>
           <div className="grid grid-cols-5 gap-1.5" role="group" aria-label="Mood, 1 tilted to 5 calm">
             {([1, 2, 3, 4, 5] as const).map((m) => (
-              <Chip key={m} selected={mood === m} onClick={() => setMood(mood === m ? null : m)} className="num justify-center px-0" aria-label={`Mood ${m}`}>
+              <Chip key={m} selected={mood === m} onClick={() => setMood(mood === m ? null : m)} className="num w-full min-w-0 justify-center px-0" aria-label={`Mood ${m}`}>
                 {m}
               </Chip>
             ))}
+          </div>
+          <div className="flex justify-between text-caption text-ink-3">
+            <span>tilted</span>
+            <span>calm</span>
           </div>
         </div>
       </div>
@@ -240,7 +247,6 @@ export function PlanCard({ date, defaultOpen }: { date: string; defaultOpen?: bo
       </button>
       {open && (
         <form onSubmit={submit} className="flex flex-col gap-4 border-t border-line px-4 pt-4 pb-4 md:px-5" noValidate>
-          {/* MOUNT: market context — pre-market levels/strip can go here. */}
           <div className="flex flex-col gap-1.5">
             <span className="caption">Bias</span>
             <SegmentedControl
@@ -257,7 +263,11 @@ export function PlanCard({ date, defaultOpen }: { date: string; defaultOpen?: bo
           <Field label="Key levels" htmlFor={`pl-levels-${date}`}>
             <TextInput id={`pl-levels-${date}`} mono value={levels} maxLength={500} onChange={(e) => setLevels(e.target.value)} placeholder="21050 resistance, 20980 VWAP" />
           </Field>
-          <Field label="Focus" htmlFor={`pl-focus-${date}`}>
+          <Field
+            label="Focus"
+            htmlFor={`pl-focus-${date}`}
+            aside={<AddEventsButton date={date} current={focus} onAdd={(line) => setFocus((f) => (f.trim() ? `${f.trim()} · ${line}` : line).slice(0, 500))} />}
+          >
             <TextInput id={`pl-focus-${date}`} value={focus} maxLength={500} onChange={(e) => setFocus(e.target.value)} placeholder="Wait for the pullback. Max 3 trades." />
           </Field>
           <Button type="submit" variant="primary" className="self-start max-sm:self-stretch">
@@ -266,5 +276,22 @@ export function PlanCard({ date, defaultOpen }: { date: string; defaultOpen?: bo
         </form>
       )}
     </section>
+  );
+}
+
+/** One tap appends the day's USD high/medium events to the plan. Hidden while loading, on error, or when there are none. */
+function AddEventsButton({ date, current, onAdd }: { date: string; current: string; onAdd: (line: string) => void }) {
+  const { data } = useMarketDay(api.get, date);
+  const line = data ? eventsForPlan(data.events) : '';
+  if (!line || current.includes(line)) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => onAdd(line)}
+      className="relative -my-1 inline-flex min-h-7 items-center gap-1.5 rounded-control border border-line bg-inset px-2 text-caption text-ink-2 transition-colors duration-[120ms] after:absolute after:-inset-y-2 after:inset-x-0 after:content-[''] hover:border-line-strong hover:text-ink-1 active:bg-surface-2"
+    >
+      <CalendarClock size={13} aria-hidden />
+      {date === todayLocal() ? 'Add today’s events' : 'Add the day’s events'}
+    </button>
   );
 }

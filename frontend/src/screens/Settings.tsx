@@ -80,7 +80,7 @@ export function SettingsScreen() {
           </div>
         </Section>
 
-        <p className="num pb-2 text-center text-caption text-ink-4">Trading Journal v{pkg.version}</p>
+        <p className="num pb-2 text-center text-caption text-ink-3">Trading Journal v{pkg.version}</p>
       </div>
 
       {editing && <AccountSheet account={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
@@ -102,8 +102,8 @@ export function SettingsScreen() {
 function Section({ title, hint, aside, children }: { title: string; hint?: string; aside?: ReactNode; children: ReactNode }) {
   return (
     <section aria-label={title}>
-      <div className="mb-2 flex min-h-9 items-end justify-between gap-3">
-        <div>
+      <div className={cx('mb-2 flex min-h-9 justify-between gap-3', hint ? 'items-end' : 'items-center')}>
+        <div className="min-w-0">
           <h2 className="text-[15px] leading-6 font-semibold">{title}</h2>
           {hint && <p className="text-body text-ink-3">{hint}</p>}
         </div>

@@ -16,6 +16,7 @@ import { Button, SegmentedControl, TextInput, cx } from '../ui/controls';
 import { Money } from '../ui/Money';
 import { TickerStrip } from '../ui/TickerStrip';
 import { EmptyState, Skeleton } from '../ui/states';
+import { EdgeCard, computeEdge } from '../features/Edge';
 
 type Range = '7d' | '30d' | '90d' | 'all';
 const RANGE_DAYS: Record<Exclude<Range, 'all'>, number> = { '7d': 7, '30d': 30, '90d': 90 };
@@ -31,6 +32,7 @@ export function Insights() {
   const inRange = useMemo(() => (from ? trades.filter((t) => t.date >= from) : trades), [trades, from]);
   const stats = useMemo(() => computeStats(inRange, band), [inRange, band]);
   const series = useMemo(() => dailySeries(inRange), [inRange]);
+  const edge = useMemo(() => computeEdge(inRange, band), [inRange, band]);
 
   const rangeControl = (cls: string) => (
     <SegmentedControl
@@ -90,6 +92,8 @@ export function Insights() {
               { label: 'Trades', value: String(stats.count) },
             ]}
           />
+
+          <EdgeCard edge={edge} band={band} link={false} title={range === 'all' ? 'What compounds · all time' : `What compounds · last ${RANGE_DAYS[range]} days`} />
 
           <div className="grid gap-4 md:gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
             <ChartCard title="Equity" aside={<Money value={stats.net} flatBand={band} className="text-body" />}>
@@ -227,19 +231,9 @@ function MistakeCost({ trades, band, net, onLog }: { trades: Trade[]; band: numb
         </div>
       ) : (
         <>
-          <p className="mt-2 text-[17px] leading-6 font-semibold">
-            {cost < 0 ? (
-              <>
-                Mistakes cost you <Money value={cost} className="text-[17px]" />
-              </>
-            ) : (
-              <>
-                Mistake trades netted <Money value={cost} className="text-[17px]" />
-              </>
-            )}
-          </p>
-          <p className="num mt-1 text-caption text-ink-3">
-            {tagged.length} trade{tagged.length === 1 ? '' : 's'} · without them: <Money value={net - cost} className="text-caption" />
+          <p className="mt-1 text-body text-ink-2">
+            {tagged.length} tagged trade{tagged.length === 1 ? '' : 's'} netted <Money value={cost} className="text-body" /> · without them you’d be at{' '}
+            <Money value={net - cost} className="text-body" />
           </p>
           <ul className="mt-4 flex flex-col gap-3" data-testid="mistake-rows">
             {rows.map((r) => (

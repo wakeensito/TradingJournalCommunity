@@ -13,9 +13,12 @@ import { SessionTape } from '../ui/SessionTape';
 import { Button } from '../ui/controls';
 import { EmptyState } from '../ui/states';
 import { CloseDayCard, PlanCard, TradeList } from '../features/DayParts';
+import { MarketContextStrip } from '../features/market';
+import { DayVerdict, EdgeCard, useEdge } from '../features/Edge';
+import { api } from '../lib/api';
 
 export function Today() {
-  const { trades, settings, accounts } = useData();
+  const { trades, settings, accounts, days } = useData();
   const ui = useAppUi();
   const today = todayLocal();
   const band = settings.breakevenBand;
@@ -38,6 +41,14 @@ export function Today() {
   );
 
   const hasAnyTrades = trades.length > 0;
+  const edge = useEdge(trades, band, today);
+  const review = days.find((d) => d.date === today)?.review;
+  const closed = !!(review && (review.text || review.followedPlan != null || review.mood));
+  const goClose = () => {
+    const el = document.getElementById(`cd-text-${today}`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el?.focus({ preventScroll: true });
+  };
 
   return (
     <div>
@@ -67,7 +78,8 @@ export function Today() {
             <div className="rounded-card border border-line bg-surface-1 px-3">
               <SessionTape trades={todays} size="lg" band={band} />
             </div>
-            {/* MOUNT: market context — MarketContextStrip goes here (under the hero P&L). */}
+            <DayVerdict trades={todays} band={band} closed={closed} onClose={goClose} />
+            <MarketContextStrip apiGet={api.get} date={today} maxEvents={2} />
           </section>
 
           {propAlerts.map(({ a, p }) => (
@@ -113,8 +125,10 @@ export function Today() {
         </div>
 
         <div className="flex min-w-0 flex-col gap-4">
-          <CloseDayCard date={today} />
-          <PlanCard date={today} />
+          {/* First run: nothing to close or plan yet — keep the one call to action alone. */}
+          {(hasAnyTrades || closed) && <CloseDayCard date={today} />}
+          <EdgeCard edge={edge} band={band} />
+          {hasAnyTrades && <PlanCard date={today} />}
         </div>
       </div>
     </div>

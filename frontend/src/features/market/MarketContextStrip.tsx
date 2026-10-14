@@ -47,10 +47,10 @@ export function MarketContextStrip({ apiGet, date, maxEvents = 4, className }: M
     <div
       role="group"
       aria-label="Market context (times ET)"
-      className={cx('scroll-x flex min-h-8 items-center gap-3 whitespace-nowrap', className)}
+      className={cx('flex min-h-8 flex-wrap items-center gap-x-3 gap-y-2', className)}
     >
       {hasQuotes && (
-        <div className="flex shrink-0 items-center gap-2 text-body">
+        <div className="flex shrink-0 items-center gap-2 text-body whitespace-nowrap">
           {ES && <IndexItem label="ES" q={ES} />}
           {ES && NQ && <Dot />}
           {NQ && <IndexItem label="NQ" q={NQ} />}
@@ -58,9 +58,8 @@ export function MarketContextStrip({ apiGet, date, maxEvents = 4, className }: M
           {data.vix && <VixItem q={data.vix} />}
         </div>
       )}
-      {hasQuotes && events.length > 0 && <span aria-hidden className="h-4 w-px shrink-0 bg-line-strong" />}
       {events.length > 0 && (
-        <ul className="flex shrink-0 items-center gap-1.5" aria-label="Economic events, Eastern time">
+        <ul className="flex min-w-0 flex-wrap items-center gap-1.5" aria-label="Economic events, Eastern time">
           {visible.map((e, i) => (
             <li key={`${e.time}-${e.title}-${i}`}>
               <EventPill e={e} />

@@ -9,6 +9,9 @@ import { Sheet } from '../ui/Sheet';
 import { Button, IconButton } from '../ui/controls';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { accountName, dayLabel, time12 } from '../app/domain';
+import { TradeChart } from './market';
+import { api } from '../lib/api';
+import { useMediaQuery } from '../ui/useMediaQuery';
 import { draftFromTrade, useTradeDraft } from './tradeDraft';
 import { CoreFields, DetailFields, PnlPreview, acceptImages, imagesFromClipboard, submitOnEnter } from './TradeFields';
 
@@ -30,6 +33,7 @@ function TradeSheetInner({ trade, onClose }: { trade: Trade; onClose: () => void
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
+  const desktop = useMediaQuery('(min-width: 768px)');
 
   const addFiles = (files: File[]) => {
     const { ok, rejected } = acceptImages(files, d.photoKeys.length + d.pending.length);
@@ -82,7 +86,7 @@ function TradeSheetInner({ trade, onClose }: { trade: Trade; onClose: () => void
         subtitle={
           <span>
             {dayLabel(trade.date)}
-            {trade.time ? <span className="num"> · {time12(trade.time)}</span> : ''} · {accountName(accounts, trade.accountId)}
+            {trade.time ? <> · <span className="num">{time12(trade.time)}</span></> : ''} · {accountName(accounts, trade.accountId)}
             {trade.source !== 'manual' ? ` · ${trade.source}` : ''}
           </span>
         }
@@ -100,11 +104,9 @@ function TradeSheetInner({ trade, onClose }: { trade: Trade; onClose: () => void
           </div>
         }
       >
-        {/* MOUNT: market context — TradeChart goes here (under the price row). */}
-
         <form
           ref={formRef}
-            onSubmit={submit}
+          onSubmit={submit}
           onKeyDown={submitOnEnter}
           noValidate
           onPaste={(e) => {
@@ -117,6 +119,7 @@ function TradeSheetInner({ trade, onClose }: { trade: Trade; onClose: () => void
           className="flex flex-col gap-5"
         >
           <CoreFields draft={draft} settings={settings} showErrors={showErrors} />
+          <TradeChart apiGet={api.get} trade={trade} height={desktop ? 240 : 200} />
           <PnlPreview draft={draft} band={settings.breakevenBand} />
           <DetailFields draft={draft} settings={settings} accounts={accounts} showErrors={showErrors} onAddFiles={addFiles} />
           <button type="submit" hidden aria-hidden tabIndex={-1} />

@@ -38,20 +38,24 @@ Dark is the default; light is also supported (`[data-theme="light"]`). Every tok
 | `--inset` | `#080b15` | `#e9eef5` | inputs (darker = "type here") |
 | `--ink-1` | `#e8edf6` | `#0d1324` | primary text |
 | `--ink-2` | `#a3adc2` | `#4a5568` | secondary |
-| `--ink-3` | `#6b7590` | `#7a8599` | labels and metadata |
+| `--ink-3` | `#808aa3` | `#5a667b` | labels and metadata (AA ≥ 4.5:1 on every surface; was `#6b7590` / `#7a8599`, which failed at 3.2–4.3:1) |
 | `--ink-4` | `#454e66` | `#aab3c2` | placeholder and disabled |
 | `--line` | `rgba(148,163,194,.10)` | `rgba(13,19,36,.08)` | standard hairline |
 | `--line-soft` | `rgba(148,163,194,.06)` | `rgba(13,19,36,.05)` | row separators |
 | `--line-strong` | `rgba(148,163,194,.18)` | `rgba(13,19,36,.14)` | emphasis and control borders |
 | `--brand` | `#3b82f6` | `#2563eb` | primary action, focus ring base |
 | `--brand-grad` | `linear-gradient(135deg,#3b82f6,#06b6d4 55%,#14b8a6)` | same | **only** the + Log button and the logo mark |
-| `--gain` | `#22c55e` | `#16a34a` | profit, wins |
-| `--loss` | `#ef4444` | `#dc2626` | loss |
-| `--flat` | `#94a3b8` | `#64748b` | breakeven |
-| `--warn` | `#f59e0b` | `#d97706` | rule breaks, drawdown near limit |
+| `--gain` | `#22c55e` | `#147a3a` | profit, wins |
+| `--loss` | `#ef4444` | `#c42020` | loss |
+| `--flat` | `#94a3b8` | `#5d6b80` | breakeven |
+| `--warn` | `#f59e0b` | `#a14a08` | rule breaks, drawdown near limit |
 | `--focus` | `0 0 0 2px var(--bg), 0 0 0 4px #3b82f6` | | focus ring |
 
 Gain and loss tints for backgrounds use `color-mix(in oklab, var(--gain) 12%, transparent)`.
+
+Light-theme gain/loss/flat/warn are the same hues one step deeper (2026-10-13 critique): 14px P&L numbers on white
+measured 3.3:1 (gain) and 3.2:1 (warn). Dark values are unchanged. `--ink-4` is for placeholders/disabled only, never for
+text someone needs to read.
 
 ## Depth
 **Borders plus surface shifts only, with no shadows** except a single soft shadow on bottom sheets and modals (`0 -8px 32px rgba(0,0,0,.35)`). There is no backdrop blur.
@@ -75,12 +79,21 @@ Respect `prefers-reduced-motion`.
 - **Ticker strip:** a horizontal row of `label (caption caps) / value (mono)` pairs with hairline separators. It scrolls horizontally on mobile with no wrapping chaos.
 - **Segmented control** (Long/Short, W/L filter): an inset track, with the active segment on `--surface-2` and a `--line-strong` border.
   Long-active text uses `--gain` and Short-active text uses `--loss`. The thumb is CSS-grid-aligned, never absolutely positioned (that's how v1's toggle misalignment happened).
-- **Chips** (setups and mistakes): 32px tall (mobile 36), radius 6, inset bg. When selected, the border uses the brand colour and the text `--ink-1`. Mistake chips use the warn colour when selected.
+- **Chips** (setups and mistakes): 32px tall (mobile 36, with an `::after` pad to a 44px hit area so chip grids stay compact), min width 44, radius 6, inset bg. When selected, the border uses the brand colour and the text `--ink-1`. Mistake chips use the warn colour when selected.
 - **Sheet:** a bottom sheet on mobile (max-height 92dvh, safe-area padding) and a right drawer (440px) on desktop.
   Primary actions are pinned to the sheet footer so they are always visible.
 - **Money:** `<Money value />` is mono, with gain/loss/flat colour and a sign. The format is `+$1,234.50` and `−$80.00` (the minus is U+2212).
 
+- **Symbol row:** recent-symbol chips and the free-text field share one row (chips scroll, field takes the rest).
+- **Day verdict** (Today, under the tape): pills answering *what went wrong* (tagged mistakes + their net, warn tint), *what worked*
+  (best setup today) and *am I done* (`Close the day →`, or `✓ Day closed`).
+- **Edge card ("What compounds")**: mistakes cost, best setup, weakest weekday over the range. Leads Insights and sits under
+  Close the day on Today. Hidden under 10 trades. Stacks in narrow columns, three-up from a 28rem container (`@container`).
+- **Market context strip:** quotes then event pills; it **wraps** (never clips at 360px). Today shows 2 events + `+N`, the day sheet 3.
+  Errors render nothing.
+
 ## Rules
 - Layouts must never overflow horizontally at 360px. Fixed bars respect `env(safe-area-inset-*)`.
+- Touch targets are ≥ 44×44 on touch layouts (an `::after` hit pad counts). `e2e/mocked/app.spec.ts` enforces this, plus no overflow and no dead buttons.
 - Every interactive element has hover, focus-visible, active and disabled states. Data views have loading, empty and error states.
 - Colour means P&L, warning or action. Never decorate with colour.

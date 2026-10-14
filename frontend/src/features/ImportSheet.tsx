@@ -189,7 +189,7 @@ function ImportInner({ onClose }: { onClose: () => void }) {
           <p className="num text-body text-ink-2" data-testid="import-summary">
             {stage.result.trades.length} trades found · <span className="text-ink-1">{fresh.length} new</span>
             {dupes > 0 && <> · {dupes} already in your journal (kept as-is)</>}
-            {stage.result.skipped > 0 && <> · {stage.result.skipped} rows skipped</>}
+            {stage.result.skipped > 0 && <> · {stage.result.skipped} row{stage.result.skipped === 1 ? '' : 's'} skipped</>}
           </p>
 
           {stage.result.warnings.length > 0 && (
@@ -239,14 +239,12 @@ function ImportInner({ onClose }: { onClose: () => void }) {
 
           <div className="overflow-hidden rounded-card border border-line">
             <div className="max-h-[40dvh] overflow-auto">
-              <table className="w-full min-w-[420px] text-body">
+              <table className="w-full text-body">
                 <thead className="sticky top-0 bg-surface-2">
                   <tr className="text-left">
                     <th className="caption px-3 py-2 font-medium">Date</th>
-                    <th className="caption px-3 py-2 font-medium">Symbol</th>
-                    <th className="caption px-3 py-2 font-medium">Side</th>
-                    <th className="caption px-3 py-2 text-right font-medium">Qty</th>
-                    <th className="caption px-3 py-2 text-right font-medium">Entry → Exit</th>
+                    <th className="caption px-3 py-2 font-medium">Trade</th>
+                    <th className="caption hidden px-3 py-2 text-right font-medium sm:table-cell">Entry → Exit</th>
                     <th className="caption px-3 py-2 text-right font-medium">Net</th>
                   </tr>
                 </thead>
@@ -256,12 +254,14 @@ function ImportInner({ onClose }: { onClose: () => void }) {
                     return (
                       <tr key={t.id} className={dup ? 'text-ink-4' : undefined}>
                         <td className="num px-3 py-2 whitespace-nowrap">
-                          {dayLabel(t.date, { month: 'short', day: 'numeric' })} <span className="text-ink-3">{t.time ?? ''}</span>
+                          {dayLabel(t.date, { month: 'short', day: 'numeric' })} <span className="text-ink-3 max-[380px]:hidden">{t.time ?? ''}</span>
                         </td>
-                        <td className="num px-3 py-2 whitespace-nowrap">{t.symbol}</td>
-                        <td className={cx('px-3 py-2', !dup && (t.side === 'long' ? 'text-gain' : 'text-loss'))}>{t.side === 'long' ? 'L' : 'S'}</td>
-                        <td className="num px-3 py-2 text-right">{t.qty}</td>
-                        <td className="num px-3 py-2 text-right whitespace-nowrap">
+                        <td className="num px-3 py-2 whitespace-nowrap">
+                          {t.symbol}{' '}
+                          <span className={cx('text-caption', !dup && (t.side === 'long' ? 'text-gain' : 'text-loss'))}>{t.side === 'long' ? 'L' : 'S'}</span>
+                          <span className="text-caption text-ink-3"> ×{t.qty}</span>
+                        </td>
+                        <td className="num hidden px-3 py-2 text-right whitespace-nowrap sm:table-cell">
                           {formatPrice(t.entry)} → {formatPrice(t.exit)}
                         </td>
                         <td className="px-3 py-2 text-right">

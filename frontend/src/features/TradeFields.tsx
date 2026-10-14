@@ -40,35 +40,40 @@ export function CoreFields({
             type="button"
             onClick={() => setD((s) => ({ ...s, assetType: NEXT_ASSET[assetType], assetTouched: true }))}
             aria-label={`Asset type: ${assetLabel(assetType)}. Tap to change.`}
-            className="inline-flex min-h-7 items-center gap-1 rounded-control border border-line bg-inset px-2 text-caption text-ink-2 hover:border-line-strong hover:text-ink-1"
+            className="relative inline-flex min-h-7 items-center gap-1 rounded-control border border-line bg-inset px-2 text-caption text-ink-2 after:absolute after:inset-x-0 after:-inset-y-2 after:content-[''] hover:border-line-strong hover:text-ink-1"
           >
             {assetLabel(assetType)}
             <ChevronDown size={12} />
           </button>
         }
       >
-        {recents.length > 0 && (
-          <div className="scroll-x -mx-1 flex gap-2 px-1 pb-1" role="group" aria-label="Recent symbols">
-            {recents.map((s) => (
-              <Chip key={s} selected={d.symbol.toUpperCase() === s.toUpperCase()} onClick={() => set('symbol', s)} className="num">
-                {s}
-              </Chip>
-            ))}
-          </div>
-        )}
-        <TextInput
-          id="tf-symbol"
-          ref={symbolRef}
-          mono
-          value={d.symbol}
-          onChange={(e) => set('symbol', e.target.value.toUpperCase())}
-          placeholder="MNQ, MESZ5, SPY 500C 12/19"
-          autoCapitalize="characters"
-          autoComplete="off"
-          spellCheck={false}
-          aria-invalid={!!err('symbol')}
-          enterKeyHint="next"
-        />
+        {/* One row: recent-symbol chips (one tap) + the field for anything else. */}
+        <div className="flex items-center gap-2">
+          {recents.length > 0 && (
+            <div className="scroll-x -my-1 flex min-w-0 shrink gap-2 py-1" role="group" aria-label="Recent symbols">
+              {recents.map((s) => (
+                <Chip key={s} selected={d.symbol.toUpperCase() === s.toUpperCase()} onClick={() => set('symbol', s)} className="num h-11 md:h-11">
+                  {s}
+                </Chip>
+              ))}
+            </div>
+          )}
+          <TextInput
+            id="tf-symbol"
+            ref={symbolRef}
+            mono
+            value={d.symbol}
+            onChange={(e) => set('symbol', e.target.value.toUpperCase())}
+            placeholder={recents.length ? 'Other' : 'MNQ, MESZ5, SPY 500C 12/19'}
+            title="Any symbol: MNQ, MESZ5, SPY 500C 12/19"
+            className="min-w-[112px] flex-1 basis-[112px]"
+            autoCapitalize="characters"
+            autoComplete="off"
+            spellCheck={false}
+            aria-invalid={!!err('symbol')}
+            enterKeyHint="next"
+          />
+        </div>
       </Field>
 
       <div className="grid grid-cols-2 gap-3">
@@ -135,7 +140,7 @@ export function PnlPreview({ draft, band }: { draft: TradeDraft; band: number })
         <div className="num flex flex-col items-end gap-0.5 text-caption text-ink-3">
           {preview && <span>gross {formatMoney(preview.net + fees, { sign: true })}</span>}
           <span data-testid="preview-fees">fees {formatMoney(fees)}</span>
-          {assetType !== 'stock' && <span>×{mult.multiplier}</span>}
+          {assetType !== 'stock' && <span>{formatMoney(mult.multiplier)}/pt</span>}
           {preview?.r !== null && preview?.r !== undefined && (
             <span className={preview.r >= 0 ? 'text-gain' : 'text-loss'}>
               {preview.r >= 0 ? '+' : '−'}
@@ -216,14 +221,14 @@ export function DetailFields({
               key={m}
               selected={d.mood === m}
               onClick={() => set('mood', d.mood === m ? null : m)}
-              className="num justify-center"
+              className="num w-full min-w-0 justify-center"
               aria-label={`Mood ${m}${m === 1 ? ' (tilted)' : m === 5 ? ' (calm)' : ''}`}
             >
               {m}
             </Chip>
           ))}
         </div>
-        <div className="mt-1 flex justify-between text-caption text-ink-4">
+        <div className="mt-1 flex justify-between text-caption text-ink-3">
           <span>tilted</span>
           <span>calm</span>
         </div>
@@ -312,7 +317,7 @@ function PhotoField({ draft, onAddFiles }: { draft: TradeDraft; onAddFiles: (fil
     <div className="flex flex-col gap-2">
       <div className="flex items-baseline justify-between">
         <span className="caption">Screenshots</span>
-        <span className="num text-caption text-ink-4">
+        <span className="num text-caption text-ink-3">
           {count}/{MAX_PHOTOS}
         </span>
       </div>
@@ -367,9 +372,9 @@ function PhotoField({ draft, onAddFiles }: { draft: TradeDraft; onAddFiles: (fil
 
 function Thumb({ src, label, onRemove, onOpen }: { src?: string; label: string; onRemove: () => void; onOpen?: () => void }) {
   return (
-    <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-control border border-line bg-inset">
+    <div className="relative h-16 w-16 shrink-0 rounded-control border border-line bg-inset">
       {src ? (
-        <button type="button" onClick={onOpen} className="block h-full w-full" aria-label={`Open ${label}`}>
+        <button type="button" onClick={onOpen} className="block h-full w-full overflow-hidden rounded-control" aria-label={`Open ${label}`}>
           <img src={src} alt="" className="h-full w-full object-cover" />
         </button>
       ) : (
@@ -379,7 +384,7 @@ function Thumb({ src, label, onRemove, onOpen }: { src?: string; label: string; 
         type="button"
         aria-label={`Remove ${label}`}
         onClick={onRemove}
-        className="absolute top-0.5 right-0.5 grid h-6 w-6 place-items-center rounded-full bg-[var(--scrim)] text-white"
+        className="absolute top-0.5 right-0.5 grid h-6 w-6 place-items-center rounded-full bg-[var(--scrim)] text-white after:absolute after:-inset-2.5 after:content-['']"
       >
         <X size={12} />
       </button>
