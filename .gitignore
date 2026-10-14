@@ -1,24 +1,30 @@
+# Secrets / local config
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+frontend/public/config.json
 
-# Dependencies
+# Dependencies & builds
 node_modules/
-package-lock.json
-
-# Build outputs
 dist/
 build/
 .vite/
+.aws-sam/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.venv/
+*.egg-info/
 *.log
 
-# IDE
+# Playwright
+frontend/test-results/
+frontend/playwright-report/
+frontend/e2e/.auth/
+
+# IDE / OS
 .vscode/
 .idea/
 *.swp
-*.swo
-*~
-
-# OS
 .DS_Store
 Thumbs.db

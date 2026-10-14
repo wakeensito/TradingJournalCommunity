@@ -1,0 +1,6 @@
+# Market-context Lambda (MarketFunction). Powertools comes from the AWS-owned layer (template Globals),
+# boto3 from the runtime. yfinance is pinned to the version ClearVest runs in production.
+yfinance==1.7.0
+requests>=2.32,<3
+# zoneinfo needs an IANA database; the python3.13 Lambda image does not ship /usr/share/zoneinfo.
+tzdata>=2024.1

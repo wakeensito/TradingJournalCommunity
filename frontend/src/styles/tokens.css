@@ -1,0 +1,81 @@
+/* Design tokens — "The close." See .interface-design/system.md. Dark is the default. */
+
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #0a0e1a;
+  --surface-1: #0f1424;
+  --surface-2: #151b2e;
+  --inset: #080b15;
+
+  --ink-1: #e8edf6;
+  --ink-2: #a3adc2;
+  --ink-3: #808aa3; /* AA: ≥ 4.9:1 on every dark surface (was #6b7590, 3.7–4.3:1) */
+  --ink-4: #454e66;
+
+  --line: rgba(148, 163, 194, 0.1);
+  --line-soft: rgba(148, 163, 194, 0.06);
+  --line-strong: rgba(148, 163, 194, 0.18);
+
+  --brand: #3b82f6;
+  --gain: #22c55e;
+  --loss: #ef4444;
+  --flat: #94a3b8;
+  --warn: #f59e0b;
+
+  --scrim: rgba(4, 6, 12, 0.6);
+  --sheet-shadow: 0 -8px 32px rgba(0, 0, 0, 0.35);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f0f4f8;
+  --surface-1: #ffffff;
+  --surface-2: #f7f9fc;
+  --inset: #e9eef5;
+
+  --ink-1: #0d1324;
+  --ink-2: #4a5568;
+  --ink-3: #5a667b; /* AA: ≥ 5:1 on every light surface (was #7a8599, 3.2–3.7:1) */
+  --ink-4: #aab3c2;
+
+  --line: rgba(13, 19, 36, 0.08);
+  --line-soft: rgba(13, 19, 36, 0.05);
+  --line-strong: rgba(13, 19, 36, 0.14);
+
+  --brand: #2563eb;
+  /* Light P&L/warn are the same hues, one step deeper, so 14px numbers pass AA on white and inset (≥ 4.6:1). */
+  --gain: #147a3a;
+  --loss: #c42020;
+  --flat: #5d6b80;
+  --warn: #a14a08;
+
+  --scrim: rgba(13, 19, 36, 0.35);
+  --sheet-shadow: 0 -8px 32px rgba(13, 19, 36, 0.18);
+}
+
+:root {
+  --brand-grad: linear-gradient(135deg, #3b82f6, #06b6d4 55%, #14b8a6);
+  --focus: 0 0 0 2px var(--bg), 0 0 0 4px #3b82f6;
+
+  --gain-tint: color-mix(in oklab, var(--gain) 12%, transparent);
+  --loss-tint: color-mix(in oklab, var(--loss) 12%, transparent);
+  --warn-tint: color-mix(in oklab, var(--warn) 12%, transparent);
+  --brand-tint: color-mix(in oklab, var(--brand) 14%, transparent);
+
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --dur-fast: 120ms;
+  --dur: 180ms;
+  --dur-sheet: 220ms;
+
+  /* Layout metrics shared by shell + sheets */
+  --tabbar-h: 64px;
+  --header-h: 56px;
+  --rail-w: 88px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  /* Height of the on-screen keyboard (set by useKeyboardInset on iOS). */
+  --kb: 0px;
+}

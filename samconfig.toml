@@ -1,0 +1,21 @@
+# SAM deploy config — default AWS profile only; no secrets. No account IDs anywhere in the repo.
+# Deploy with scripts/deploy.sh (builds + uploads the SPA too), not bare `sam deploy`.
+version = 0.1
+
+[default.global.parameters]
+stack_name = "tradejournal"
+region = "us-east-1"
+
+[default.build.parameters]
+cached = true
+parallel = true
+
+[default.validate.parameters]
+lint = true
+
+[default.deploy.parameters]
+capabilities = "CAPABILITY_IAM"
+resolve_s3 = true
+confirm_changeset = false
+fail_on_empty_changeset = false
+parameter_overrides = "Stage=prod"

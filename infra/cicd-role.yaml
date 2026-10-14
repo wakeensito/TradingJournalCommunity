@@ -1,0 +1,580 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  GitHub Actions OIDC deploy role for TradingJournalCommunity — the one bootstrap
+  piece, applied once from a laptop:
+    aws cloudformation deploy --template-file infra/cicd-role.yaml \
+      --stack-name tradejournal-cicd --capabilities CAPABILITY_NAMED_IAM
+  Then: gh variable set AWS_DEPLOY_ROLE_ARN --body "<DeployRoleArn output>".
+  CloudFormation, not Terraform, on purpose: state lives server-side in the
+  stack (no local tfstate to lose) and it's one toolchain with SAM stacks.
+  Every ARN is built from pseudo-parameters — no account ID in the repo.
+  Never static AWS keys; OIDC role assumption only.
+
+Parameters:
+  GitHubRepo:
+    Type: String
+    Default: wakeensito/TradingJournalCommunity
+    Description: repo allowed to assume the role (owner/name)
+  AppStackName:
+    Type: String
+    Default: tradejournal
+    Description: the CloudFormation/SAM stack this role deploys
+  FmpKeyParam:
+    Type: String
+    Default: clearvest-fmp
+    Description: >-
+      SSM parameter NAME (no leading slash) of the FMP API key the market function reads.
+      Must match template.yaml's FmpKeyParam (this stack can't see the app's parameters).
+
+Resources:
+  # Assumes the account already has the GitHub OIDC provider
+  # (token.actions.githubusercontent.com). If not, create it once:
+  #   aws iam create-open-id-connect-provider \
+  #     --url https://token.actions.githubusercontent.com \
+  #     --client-id-list sts.amazonaws.com
+  DeployRole:
+    Type: AWS::IAM::Role
+    # cfn-lint's IAM action DB lags AWS: apigateway:TagResource/UntagResource (called by the
+    # ApiGatewayV2 Stage handler) and cloudfront:CreateDistributionWithTags (in the CFN
+    # Distribution handler's permission list) are kept as ClearVest runs them in production.
+    Metadata:
+      cfn-lint:
+        config:
+          ignore_checks: [W3037]
+    Properties:
+      RoleName: !Sub '${AppStackName}-gha-deploy'
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com'
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+              StringLike:
+                # BOTH subject shapes, learned the hard way: classic
+                # "repo:owner/name:..." AND GitHub's ID-stamped
+                # "repo:owner@id/name@id:..." — accounts with the newer
+                # format never match the classic pattern alone, and the
+                # failure is an opaque "Not authorized" at assume time.
+                # Pinned to refs/heads/main: deploys run only on push to /
+                # workflow_dispatch on main, so PR branches, tags and
+                # environments can never assume this role. StringLike is
+                # needed only for the unknown numeric owner/repo IDs in the
+                # second shape — the ref suffix is the load-bearing pin.
+                token.actions.githubusercontent.com:sub:
+                  - !Sub 'repo:${GitHubRepo}:ref:refs/heads/main'
+                  - !Sub
+                    - 'repo:${Owner}@*/${Name}@*:ref:refs/heads/main'
+                    - Owner: !Select [0, !Split ['/', !Ref GitHubRepo]]
+                      Name: !Select [1, !Split ['/', !Ref GitHubRepo]]
+      Policies:
+        - PolicyName: deploy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # Drive the app stack's CloudFormation lifecycle.
+              - Sid: CloudFormation
+                Effect: Allow
+                Action:
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:DeleteChangeSet
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:GetTemplateSummary
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AppStackName}/*'
+                  # SAM's resolve_s3 manages its artifact bucket via this
+                  # stack and touches it on every deploy.
+                  - !Sub 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/aws-sam-cli-managed-default/*'
+              # SAM's transform is a managed CFN "resource".
+              - Sid: SamTransform
+                Effect: Allow
+                Action: cloudformation:CreateChangeSet
+                Resource: !Sub 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:aws:transform/Serverless-2016-10-31'
+              - Sid: SamArtifacts
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:ListBucket
+                  - s3:CreateBucket
+                  - s3:GetBucketLocation
+                  - s3:PutBucketPolicy
+                  - s3:PutEncryptionConfiguration
+                  - s3:PutBucketVersioning
+                  - s3:PutBucketPublicAccessBlock
+                  - s3:PutBucketTagging
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:s3:::aws-sam-cli-managed-default*'
+              # App resources, all scoped to the stack's naming prefix.
+              # EXTEND per stack: add statements for whatever the app
+              # template actually creates (SNS, SQS, CloudFront, etc.) —
+              # scoped by the ${AppStackName}-* prefix, never '*'.
+              # Explicit Lambda actions CloudFormation/SAM use — no lambda:*
+              # (InvokeFunction etc. deliberately absent).
+              - Sid: AppFunctions
+                Effect: Allow
+                Action:
+                  - lambda:CreateFunction
+                  - lambda:DeleteFunction
+                  - lambda:GetFunction
+                  - lambda:GetFunctionConfiguration
+                  - lambda:GetFunctionCodeSigningConfig
+                  - lambda:GetRuntimeManagementConfig
+                  - lambda:GetFunctionRecursionConfig
+                  - lambda:UpdateFunctionCode
+                  - lambda:UpdateFunctionConfiguration
+                  - lambda:AddPermission
+                  - lambda:RemovePermission
+                  - lambda:GetPolicy
+                  - lambda:TagResource
+                  - lambda:UntagResource
+                  - lambda:ListTags
+                  - lambda:PublishVersion
+                  - lambda:ListVersionsByFunction
+                  - lambda:PutFunctionConcurrency
+                  - lambda:DeleteFunctionConcurrency
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${AppStackName}-*'
+              - Sid: AppTable
+                Effect: Allow
+                Action:
+                  - dynamodb:CreateTable
+                  - dynamodb:DeleteTable
+                  - dynamodb:DescribeTable
+                  - dynamodb:UpdateTable
+                  - dynamodb:UpdateTimeToLive
+                  - dynamodb:DescribeTimeToLive
+                  - dynamodb:ListTagsOfResource
+                  - dynamodb:TagResource
+                  - dynamodb:UntagResource
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AppStackName}-*'
+              # PITR on the app table (GSIs ride on UpdateTable above).
+              - Sid: AppTableBackups
+                Effect: Allow
+                Action:
+                  - dynamodb:UpdateContinuousBackups
+                  - dynamodb:DescribeContinuousBackups
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AppStackName}-*'
+              # ── tradejournal stack resources (SAM template.yaml) ──
+              # Web + photos buckets. CFN auto-names them ${AppStackName}-<logicalid>-<hash>,
+              # so the prefix holds. Also covers the workflow's `aws s3 sync`
+              # (ListBucket/GetObject/PutObject/DeleteObject).
+              - Sid: AppBuckets
+                Effect: Allow
+                Action:
+                  # bucket lifecycle (CloudFormation)
+                  - s3:CreateBucket
+                  - s3:DeleteBucket
+                  - s3:GetBucketLocation
+                  - s3:GetBucketPolicy
+                  - s3:PutBucketPolicy
+                  - s3:DeleteBucketPolicy
+                  - s3:GetBucketCORS
+                  - s3:PutBucketCORS
+                  - s3:GetEncryptionConfiguration
+                  - s3:PutEncryptionConfiguration
+                  - s3:GetBucketPublicAccessBlock
+                  - s3:PutBucketPublicAccessBlock
+                  - s3:GetBucketOwnershipControls
+                  - s3:PutBucketOwnershipControls
+                  - s3:GetLifecycleConfiguration
+                  - s3:PutLifecycleConfiguration
+                  - s3:GetBucketVersioning
+                  - s3:PutBucketVersioning
+                  - s3:GetBucketTagging
+                  - s3:PutBucketTagging
+                  # SPA upload (`aws s3 sync --delete`)
+                  - s3:ListBucket
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:s3:::${AppStackName}-*'
+                  - !Sub 'arn:${AWS::Partition}:s3:::${AppStackName}-*/*'
+              # CreateUserPool/ListUserPools have no resource-level scoping;
+              # everything else is pinned to this account+region's user pools.
+              - Sid: AppCognitoCreate
+                Effect: Allow
+                Action:
+                  - cognito-idp:CreateUserPool
+                  - cognito-idp:ListUserPools
+                Resource: '*'
+              - Sid: AppCognito
+                Effect: Allow
+                # Pool/client management only. NO Admin*/user-data actions: the account also
+                # hosts other apps' user pools (e.g. kinfolk), and userpool/* can't be name-scoped.
+                Action:
+                  - cognito-idp:DescribeUserPool
+                  - cognito-idp:UpdateUserPool
+                  - cognito-idp:DeleteUserPool
+                  - cognito-idp:CreateUserPoolClient
+                  - cognito-idp:DescribeUserPoolClient
+                  - cognito-idp:UpdateUserPoolClient
+                  - cognito-idp:DeleteUserPoolClient
+                  - cognito-idp:GetUserPoolMfaConfig
+                  - cognito-idp:SetUserPoolMfaConfig
+                  - cognito-idp:TagResource
+                  - cognito-idp:UntagResource
+                  - cognito-idp:ListTagsForResource
+                Resource: !Sub 'arn:${AWS::Partition}:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*'
+              # HTTP API (v2) + JWT authorizer + stages. API IDs are generated,
+              # so no name scoping; pinned to the v2 /apis path tree in this
+              # region (no REST /restapis); tags are PUT/DELETE on /tags/*.
+              # apigateway:TagResource/UntagResource are real actions the
+              # ApiGatewayV2 Stage handler calls (cfn-lint's DB lacks them -> W3037,
+              # same as ClearVest). RESIDUAL RISK: like ClearVest, this can modify
+              # or delete ANY HTTP/WebSocket API in this region (other apps' too);
+              # API Gateway paths carry no name, and ClearVest has no proven
+              # tag-gated pattern to reuse here.
+              - Sid: AppHttpApi
+                Effect: Allow
+                Action:
+                  - apigateway:GET
+                  - apigateway:POST
+                  - apigateway:PUT
+                  - apigateway:PATCH
+                  - apigateway:DELETE
+                  - apigateway:TagResource
+                  - apigateway:UntagResource
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis'
+                  - !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis/*'
+                  - !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}::/tags/*'
+              # ── CloudFront ── adapted from ClearVest's production-proven pattern.
+              # This account hosts OTHER sites' distributions (keenkloud.net, ClearVest,
+              # kinfolk, ...), so nothing here may write to a resource we don't own.
+              # CloudFront is global: ARNs have no region.
+              # Create actions have no usable resource-level scoping (ClearVest found
+              # scoping them implicitly denies), so they stay on '*'. A create can't
+              # touch an existing resource; CFN creates the tagged distribution via
+              # CreateDistributionWithTags, and every later write is tag-gated below.
+              - Sid: AppCloudFrontCreate
+                Effect: Allow
+                Action:
+                  # No CreateDistribution/CreateDistributionWithTags and no "tag a new distribution"
+                  # grant: a RequestTag-gated TagResource would let this role stamp the ownership tag
+                  # onto ANOTHER site's distribution and then edit it. The distribution is created once
+                  # by a laptop deploy (scripts/deploy.sh, admin creds); CI only updates tagged ones.
+                  # Replacing the distribution therefore needs a laptop deploy.
+                  - cloudfront:CreateOriginAccessControl
+                  - cloudfront:CreateConnectionGroup
+                  - cloudfront:CreateFunction
+                  - cloudfront:CreateResponseHeadersPolicy
+                Resource: '*'
+              # Read-only lookups the AWS::CloudFront::Distribution handler declares in
+              # the CloudFormation registry (features unused here, but a missing
+              # permission fails the handler).
+              - Sid: AppCloudFrontHandlerReads
+                Effect: Allow
+                Action:
+                  - cloudfront:GetConnectionGroup
+                  - cloudfront:GetVpcOrigin
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:connection-group/*'
+                  - !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:vpcorigin/*'
+              # List* calls have no resource-level scoping; read-only.
+              - Sid: AppCloudFrontList
+                Effect: Allow
+                Action:
+                  - cloudfront:ListDistributions
+                  - cloudfront:ListOriginAccessControls
+                  - cloudfront:ListFunctions
+                  - cloudfront:ListResponseHeadersPolicies
+                  - cloudfront:ListCachePolicies
+                  - cloudfront:ListOriginRequestPolicies
+                Resource: '*'
+              # Reads + invalidations stay account-wide on distribution/* (harmless,
+              # and needed before the ownership tag is readable).
+              - Sid: AppCloudFrontRead
+                Effect: Allow
+                Action:
+                  - cloudfront:GetDistribution
+                  - cloudfront:GetDistributionConfig
+                  - cloudfront:ListTagsForResource
+                  - cloudfront:CreateInvalidation
+                  - cloudfront:GetInvalidation
+                Resource: !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/*'
+              # Writes only on distributions carrying the ownership tag that
+              # template.yaml puts on CloudFrontDistribution.
+              - Sid: AppCloudFrontWriteOwn
+                Effect: Allow
+                Action:
+                  - cloudfront:UpdateDistribution
+                  - cloudfront:UpdateDistributionWithStagingConfig
+                  - cloudfront:DeleteDistribution
+                  - cloudfront:TagResource
+                Resource: !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/*'
+                Condition:
+                  StringEquals:
+                    aws:ResourceTag/tradejournal:managed-by: tradejournal-cicd
+              # First tagging of a new distribution: only if the request itself
+              # carries the ownership tag.
+              # Untag our own distributions, but never the ownership tag itself.
+              - Sid: AppCloudFrontUntagOwn
+                Effect: Allow
+                Action: cloudfront:UntagResource
+                Resource: !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/*'
+                Condition:
+                  StringEquals:
+                    aws:ResourceTag/tradejournal:managed-by: tradejournal-cicd
+                  ForAllValues:StringNotEquals:
+                    aws:TagKeys:
+                      - tradejournal:managed-by
+              # RESIDUAL RISK: OAC and response-headers-policy ARNs are random IDs and
+              # those resources aren't taggable, so writes are scoped only by ARN type
+              # (same as ClearVest's OAC statement). The role could in principle
+              # update/delete another app's OAC or custom response-headers policy.
+              - Sid: AppCloudFrontOAC
+                Effect: Allow
+                Action:
+                  - cloudfront:GetOriginAccessControl
+                  - cloudfront:GetOriginAccessControlConfig
+                  - cloudfront:UpdateOriginAccessControl
+                  - cloudfront:DeleteOriginAccessControl
+                Resource: !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:origin-access-control/*'
+              - Sid: AppCloudFrontResponseHeaders
+                Effect: Allow
+                Action:
+                  - cloudfront:GetResponseHeadersPolicy
+                  - cloudfront:GetResponseHeadersPolicyConfig
+                  - cloudfront:UpdateResponseHeadersPolicy
+                  - cloudfront:DeleteResponseHeadersPolicy
+                Resource: !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:response-headers-policy/*'
+              # CloudFront Function ARNs carry the function NAME, so these are
+              # name-scoped to the stack prefix (tighter than ClearVest, which has none).
+              - Sid: AppCloudFrontFunctions
+                Effect: Allow
+                Action:
+                  - cloudfront:DescribeFunction
+                  - cloudfront:GetFunction
+                  - cloudfront:UpdateFunction
+                  - cloudfront:PublishFunction
+                  - cloudfront:DeleteFunction
+                  - cloudfront:TagResource
+                  - cloudfront:UntagResource
+                  - cloudfront:ListTagsForResource
+                Resource: !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:function/${AppStackName}-*'
+              # AWS managed cache/origin-request policies the distribution references
+              # (read at create/update).
+              - Sid: AppCloudFrontManagedPolicies
+                Effect: Allow
+                Action:
+                  - cloudfront:GetCachePolicy
+                  - cloudfront:GetOriginRequestPolicy
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:cache-policy/*'
+                  - !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:origin-request-policy/*'
+              # Log groups (HTTP API access logs, /aws/lambda/...): any group
+              # whose name contains the stack prefix.
+              - Sid: AppLogGroups
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:DeleteLogGroup
+                  - logs:PutRetentionPolicy
+                  - logs:DeleteRetentionPolicy
+                  - logs:TagResource
+                  - logs:UntagResource
+                  - logs:TagLogGroup
+                  - logs:ListTagsForResource
+                  - logs:ListTagsLogGroup
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*${AppStackName}-*'
+                  - !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*${AppStackName}-*:*'
+              # API Gateway access-log delivery + describe calls are
+              # account-level APIs with no resource-level scoping.
+              # RESIDUAL RISK: Update/DeleteLogDelivery + PutResourcePolicy on '*'
+              # could alter another app's API access-log delivery or the account's
+              # CloudWatch Logs resource policies. No name-scoping exists for these
+              # (ClearVest doesn't grant them at all).
+              - Sid: AppLogDelivery
+                Effect: Allow
+                Action:
+                  - logs:DescribeLogGroups
+                  - logs:CreateLogDelivery
+                  - logs:GetLogDelivery
+                  - logs:UpdateLogDelivery
+                  - logs:DeleteLogDelivery
+                  - logs:ListLogDeliveries
+                  - logs:PutResourcePolicy
+                  - logs:DescribeResourcePolicies
+                Resource: '*'
+              # SAM deploy's resource listing + workflow's describe-stacks.
+              - Sid: StackOutputs
+                Effect: Allow
+                Action:
+                  - cloudformation:ListStackResources
+                  - cloudformation:DescribeStackResource
+                  - cloudformation:DescribeStackResources
+                Resource: !Sub 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AppStackName}/*'
+              # Execution roles the app stack creates for its functions.
+              # Privilege-escalation guard: every role this pipeline creates or
+              # edits must carry AppBoundary as its permissions boundary, so a
+              # malicious template can't mint a role broader than the boundary.
+              - Sid: AppRolesRead
+                Effect: Allow
+                Action:
+                  - iam:GetRole
+                  - iam:GetRolePolicy
+                  - iam:ListRolePolicies
+                  - iam:ListAttachedRolePolicies
+                  - iam:TagRole
+                  - iam:UntagRole
+                  - iam:DeleteRole
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AppStackName}-*'
+              - Sid: AppRolesWriteBounded
+                Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:PutRolePermissionsBoundary
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AppStackName}-*'
+                Condition:
+                  StringEquals:
+                    iam:PermissionsBoundary: !Ref AppBoundary
+              # Only the AWS-managed policies SAM attaches (basic logging;
+              # X-Ray when Tracing is on), and still only to bounded roles.
+              - Sid: AppRolesAttachBounded
+                Effect: Allow
+                Action: iam:AttachRolePolicy
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AppStackName}-*'
+                Condition:
+                  StringEquals:
+                    iam:PermissionsBoundary: !Ref AppBoundary
+                  ArnLike:
+                    iam:PolicyARN:
+                      - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+                      - !Sub 'arn:${AWS::Partition}:iam::aws:policy/AWSXrayWriteOnlyAccess'
+              - Sid: AppRolesPassToLambdaOnly
+                Effect: Allow
+                Action: iam:PassRole
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AppStackName}-*'
+                Condition:
+                  StringEquals:
+                    iam:PassedToService: lambda.amazonaws.com
+              - Sid: DenyBoundaryRemoval
+                Effect: Deny
+                Action: iam:DeleteRolePermissionsBoundary
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AppStackName}-*'
+              - Sid: DenyBoundarySwap
+                Effect: Deny
+                Action: iam:PutRolePermissionsBoundary
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AppStackName}-*'
+                Condition:
+                  StringNotEquals:
+                    iam:PermissionsBoundary: !Ref AppBoundary
+              # This role's own name matches ${AppStackName}-*; never let it
+              # edit itself.
+              - Sid: DenySelfEdit
+                Effect: Deny
+                Action:
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:PutRolePermissionsBoundary
+                  - iam:DeleteRolePermissionsBoundary
+                  - iam:TagRole
+                  - iam:UntagRole
+                  - iam:UpdateAssumeRolePolicy
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AppStackName}-gha-deploy'
+
+  # Permissions boundary for every function role in the app stack. The app
+  # template sets (Globals.Function):
+  #   PermissionsBoundary: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${AWS::StackName}-boundary
+  # so ManagedPolicyName must stay exactly ${AppStackName}-boundary.
+  # The deploy role has no iam:CreatePolicyVersion, so it can't widen this.
+  AppBoundary:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub '${AppStackName}-boundary'
+      Description: Ceiling for tradejournal app function roles (set as PermissionsBoundary)
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AppTableData
+            Effect: Allow
+            Action:
+              - dynamodb:GetItem
+              - dynamodb:PutItem
+              - dynamodb:UpdateItem
+              - dynamodb:DeleteItem
+              - dynamodb:Query
+              - dynamodb:Scan
+              - dynamodb:BatchGetItem
+              - dynamodb:BatchWriteItem
+              - dynamodb:ConditionCheckItem
+              - dynamodb:DescribeTable
+            Resource:
+              - !Sub 'arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AppStackName}-*'
+              - !Sub 'arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AppStackName}-*/index/*'
+          - Sid: AppObjects
+            Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - s3:DeleteObject
+            Resource: !Sub 'arn:${AWS::Partition}:s3:::${AppStackName}-*/*'
+          # Converse / ConverseStream authorize as InvokeModel /
+          # InvokeModelWithResponseStream (they are not separate IAM actions).
+          # foundation-model uses region '*' because cross-region inference
+          # profiles route to models in other regions.
+          - Sid: Bedrock
+            Effect: Allow
+            Action:
+              - bedrock:InvokeModel
+              - bedrock:InvokeModelWithResponseStream
+            Resource:
+              - !Sub 'arn:${AWS::Partition}:bedrock:*::foundation-model/*'
+              - !Sub 'arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/*'
+          # Market function reads the shared FMP key. SecureString under the AWS
+          # managed aws/ssm key: that key's policy already lets in-account principals
+          # decrypt via SSM (kms:ViaService + kms:CallerAccount), so no kms:Decrypt
+          # is needed here. A customer-managed CMK would need kms:Decrypt on it.
+          - Sid: MarketFmpKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${FmpKeyParam}'
+          - Sid: Logs
+            Effect: Allow
+            Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource:
+              - !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AppStackName}-*'
+              - !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AppStackName}-*:*'
+          - Sid: XRay
+            Effect: Allow
+            Action:
+              - xray:PutTraceSegments
+              - xray:PutTelemetryRecords
+            Resource: '*'
+
+Outputs:
+  DeployRoleArn:
+    Description: Set this as the AWS_DEPLOY_ROLE_ARN repo variable
+    Value: !GetAtt DeployRole.Arn
+  BoundaryArn:
+    Description: Permissions boundary the app template sets on every function role
+    Value: !Ref AppBoundary

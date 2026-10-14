@@ -1,0 +1,274 @@
+@import 'tailwindcss';
+@import './tokens.css';
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-inset: var(--inset);
+  --color-ink-1: var(--ink-1);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-ink-4: var(--ink-4);
+  --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
+  --color-line-strong: var(--line-strong);
+  --color-brand: var(--brand);
+  --color-gain: var(--gain);
+  --color-loss: var(--loss);
+  --color-flat: var(--flat);
+  --color-warn: var(--warn);
+  --color-gain-tint: var(--gain-tint);
+  --color-loss-tint: var(--loss-tint);
+  --color-warn-tint: var(--warn-tint);
+  --color-brand-tint: var(--brand-tint);
+
+  --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1rem;
+  --text-caption--letter-spacing: 0.06em;
+  --text-body: 0.875rem;
+  --text-body--line-height: 1.25rem;
+  --text-input: 1rem;
+  --text-input--line-height: 1.5rem;
+  --text-title: 1.25rem;
+  --text-title--line-height: 1.75rem;
+  --text-title--letter-spacing: -0.01em;
+  --text-hero-sm: 2rem;
+  --text-hero-sm--line-height: 2.5rem;
+  --text-hero-sm--letter-spacing: -0.02em;
+  --text-hero: 2.75rem;
+  --text-hero--line-height: 3.25rem;
+  --text-hero--letter-spacing: -0.02em;
+
+  --radius-control: 6px;
+  --radius-card: 10px;
+  --radius-sheet: 16px;
+
+  --ease-quiet: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink-1);
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+    min-height: 100dvh;
+  }
+  #root {
+    min-height: 100dvh;
+  }
+  /* 16px inputs: iOS never zooms. */
+  input,
+  textarea,
+  select {
+    font: inherit;
+    font-size: 1rem;
+    color: inherit;
+  }
+  input[type='number'] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  input[type='number']::-webkit-outer-spin-button,
+  input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  button {
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+  ::placeholder {
+    color: var(--ink-4);
+    opacity: 1;
+  }
+  :focus {
+    outline: none;
+  }
+  :focus-visible {
+    outline: none;
+    box-shadow: var(--focus);
+  }
+  ::selection {
+    background: var(--brand-tint);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 1ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 1ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  .num {
+    font-family: var(--font-mono);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
+  .caption {
+    font-size: 0.75rem;
+    line-height: 1rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    font-weight: 500;
+  }
+  .card {
+    background: var(--surface-1);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+  }
+  .field {
+    width: 100%;
+    min-height: 44px;
+    background: var(--inset);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 0 12px;
+    color: var(--ink-1);
+    transition:
+      border-color var(--dur-fast) var(--ease),
+      box-shadow var(--dur-fast) var(--ease);
+  }
+  .field:hover {
+    border-color: var(--line-strong);
+  }
+  .field:focus-visible,
+  .field:focus {
+    border-color: color-mix(in oklab, var(--brand) 60%, transparent);
+    box-shadow: 0 0 0 3px var(--brand-tint);
+  }
+  .field[aria-invalid='true'] {
+    border-color: color-mix(in oklab, var(--loss) 60%, transparent);
+  }
+  .field:disabled {
+    color: var(--ink-4);
+    cursor: not-allowed;
+  }
+  textarea.field {
+    padding: 10px 12px;
+    min-height: 88px;
+    resize: vertical;
+    line-height: 1.5rem;
+  }
+  .scroll-x {
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .scroll-x::-webkit-scrollbar {
+    display: none;
+  }
+  .skeleton {
+    background: linear-gradient(90deg, var(--surface-1), var(--surface-2), var(--surface-1));
+    background-size: 200% 100%;
+    animation: shimmer 1.4s linear infinite;
+    border-radius: 6px;
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes sheet-left {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes tick-in {
+  from {
+    transform: scaleY(0);
+    opacity: 0;
+  }
+  to {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.anim-sheet-up {
+  animation: sheet-up var(--dur-sheet) var(--ease) both;
+}
+.anim-sheet-left {
+  animation: sheet-left var(--dur-sheet) var(--ease) both;
+}
+.anim-fade {
+  animation: fade-in var(--dur) var(--ease) both;
+}
+.anim-rise {
+  animation: rise var(--dur) var(--ease) both;
+}
+.tick-new {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: tick-in 420ms var(--ease) both;
+}
+.tick-new.tick-down {
+  transform-origin: 50% 0%;
+}
+.spin {
+  animation: spin 0.9s linear infinite;
+}

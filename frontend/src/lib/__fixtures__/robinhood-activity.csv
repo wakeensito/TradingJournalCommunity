@@ -1,0 +1,13 @@
+"Activity Date","Process Date","Settle Date","Instrument","Description","Trans Code","Quantity","Price","Amount"
+"12/5/2025","12/5/2025","12/8/2025","SPY","SPY 12/19/2025 Put $480.00","STC","2","$2.10","$419.94"
+"12/5/2025","12/5/2025","12/8/2025","SPY","SPY 12/19/2025 Call $510.00","BTC","1","$1.00","($100.05)"
+"12/5/2025","12/5/2025","12/8/2025","SPY","SPY 12/19/2025 Call $510.00","STO","1","$3.00","$299.95"
+"12/4/2025","12/4/2025","12/5/2025","SPY","SPY 12/19/2025 Put $480.00","BTO","2","$1.50","($300.06)"
+"12/4/2025","12/4/2025","12/5/2025","AMD","Advanced Micro Devices
+CUSIP: 007903107","Sell","5S","$121.40","$606.97"
+"12/3/2025","12/3/2025","12/4/2025","AMD","Advanced Micro Devices
+CUSIP: 007903107","Buy","5","$120.00","($600.00)"
+"12/3/2025","12/3/2025","12/3/2025","","ACH Deposit","ACH","","","$1,000.00"
+"12/2/2025","12/2/2025","12/2/2025","MSFT","Cash Div: R/D 2025-11-20 P/D 2025-12-02 - 5 shares at 0.83","CDIV","","","$4.15"
+
+"","","","","","","","","","The data provided is for informational purposes only. Please consult a professional tax service or personal tax advisor if you need instructions on how to calculate cost basis or questions regarding your specific tax situation. Reminder: This data does not include Statements and Tax Documents."

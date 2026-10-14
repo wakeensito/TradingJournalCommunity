@@ -1,0 +1,2 @@
+# Intentionally empty: boto3 ships with the Lambda runtime and Powertools comes from the AWS-owned
+# public layer pinned in template.yaml (keep pyproject's aws-lambda-powertools pin in step with it).
