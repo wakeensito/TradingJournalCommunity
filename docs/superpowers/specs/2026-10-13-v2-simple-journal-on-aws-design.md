@@ -171,6 +171,17 @@ Photo keys are `users/<sub>/trades/<tradeId>/<uuid>.<ext>`.
   - The model is DeepSeek V3.2 on Bedrock (the cheapest that works).
   - It is on-demand, never auto-tags, and never writes data.
 - **Deeper stats:** collapsed by default.
+- **Market context** (added 2026-10-13; provider code adapted from ClearVest; see `docs/market-context.md`):
+  - What it shows, with zero input from the trader:
+    - A per-day strip with ES/NQ % change, VIX, and USD high/medium-impact events (Forex Factory first, then FMP via the
+      `clearvest-fmp` SSM key).
+    - A trade chart of Yahoo 1m/5m bars with entry/exit markers, for trades from the last 60 days.
+    - A one-tap "Add today's events" button in the pre-market plan.
+  - How it's built:
+    - A separate `MarketFunction`.
+    - A shared DynamoDB cache (`pk=MARKET`).
+    - Every source fails quietly.
+  - It never calls ClearVest's API at runtime.
 
 ## Non-goals (v2)
 

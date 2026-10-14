@@ -1,0 +1,5 @@
+id,date,time,exitTime,account,symbol,assetType,side,qty,entry,exit,fees,multiplier,setup,mistakes,mood,notes,stop
+01jd3k9x7a0000000001,2025-12-03,09:41,09:44,Apex 50K #2,MNQZ5,futures,long,2,21034.25,21040.75,2.48,2,Breakout,FOMO entry|Early exit,4,"Clean break of ON high, ""textbook""
+second line",21030
+01jd3k9x7a0000000002,2025-12-03,10:02,10:15,,AAPL,stock,short,10,190.5,189,0,1,,,,,
+,2025-12-04,,,,ZZZ,futures,long,abc,1,2,,,,,,,

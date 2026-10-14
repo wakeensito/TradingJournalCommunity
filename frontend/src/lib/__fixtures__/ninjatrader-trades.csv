@@ -1,0 +1,5 @@
+Trade number,Instrument,Account,Strategy,Market pos.,Qty,Entry price,Exit price,Entry time,Exit time,Entry name,Exit name,Profit,Cum. net profit,Commission,MAE,MFE,ETD,Bars
+1,MNQ 12-25,"Apex, 50K",,Long,2,21034.25,21041.50,12/3/2025 9:41:22 AM,12/3/2025 9:47:05 AM,Entry,Exit,$29.00,$26.52,$2.48,$5.00,$32.00,$3.00,6
+2,ES 03-26,"Apex, 50K",,Short,1,6080.50,6082.75,12/3/2025 1:05:10 PM,12/3/2025 1:15:00 PM,Entry,Stop loss,($112.50),($90.26),$4.28,$137.50,$25.00,$137.50,10
+3,MES 12-25,"Apex, 50K",,Short,3,6045.00,6040.25,12/4/2025 10:00:00 AM,12/4/2025 10:12:30 AM,Entry,Profit target,$71.25,($22.75),$3.72,$15.00,$80.00,$8.75,12
+4,M2K 12-25,"Apex, 50K",,Long,1,2400.00,2400.00,12/4/2025 12:00:00 PM,12/4/2025 12:01:00 PM,Entry,Exit,$0.00,($23.25),$0.50,$2.50,$1.00,$1.00,1
