@@ -1,0 +1,49 @@
+# Deploy — main → SAM stack, then the SPA (+ config.json) to S3 + CloudFront, via scripts/deploy.sh.
+# OIDC only (never static keys). Repo variables (not secrets): AWS_DEPLOY_ROLE_ARN, DEPLOY_ENABLED=true.
+# The role comes from infra/cicd-role.yaml; bucket/distribution come from stack outputs, so nothing
+# account-specific lives in this file.
+name: Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false # never kill a deploy mid-flight
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  deploy:
+    if: vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - uses: aws-actions/setup-sam@v3
+        with:
+          use-installer: true
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy (sam build/deploy, SPA build, config.json, S3 sync, invalidation)
+        run: scripts/deploy.sh

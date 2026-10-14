@@ -1,0 +1,39 @@
+[project]
+name = "tradejournal-backend"
+version = "2.0.0"
+requires-python = ">=3.13"
+description = "Trade journal v2 backend (one Lambda behind an HTTP API). Not installed as a package; see pytest pythonpath."
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+  # Matches the AWS-owned Powertools layer pinned in template.yaml (arm64, py3.13, layer v36 = 3.31.1).
+  "aws-lambda-powertools==3.31.1",
+  "boto3>=1.40",
+  "moto[dynamodb,s3]>=5.1",
+  "pytest>=8.4",
+  "ruff==0.16.5",
+]
+
+[tool.uv]
+package = false
+
+[tool.setuptools]
+py-modules = []  # lets `uv pip install -e '.[dev]'` work too (nothing to install)
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
+pythonpath = ["backend/functions/api", "backend/tests"]
+addopts = "-q --import-mode=importlib"
+
+[tool.ruff]
+line-length = 110
+target-version = "py313"
+extend-exclude = ["frontend", ".aws-sam"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S"]
+ignore = ["S101"]  # asserts are fine in tests
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["S105", "S106", "S107"]
