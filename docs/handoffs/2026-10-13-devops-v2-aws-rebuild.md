@@ -63,7 +63,7 @@ Env var names only: `E2E_BASE_URL`, `E2E_EMAIL`, `E2E_PASSWORD`, `VITE_API_ORIGI
 
 ## Next steps
 
-1. Owner runs `bash ~/.claude/skills/launch-repo/launch.sh Tradingjournalcommunity --no-seed-issues`, then pushes `v2` and opens a PR to `main`.
+1. Owner runs `bash ~/.claude/skills/launch-repo/launch.sh TradingJournalCommunity --no-seed-issues`, then pushes `v2` and opens a PR to `main`.
    (Pushing and GitHub changes were blocked for the agent.)
 2. Set repo vars `AWS_DEPLOY_ROLE_ARN` (stack output) and `DEPLOY_ENABLED=true`. Add repo secrets for live e2e in CI if wanted.
 3. Wording follow-up: "Cost of mistakes" also lists mistakes that netted positive. Rename it to "Tagged mistakes · net", or filter it.

@@ -1,6 +1,6 @@
 # Handoffs
 
-Everyone on Tradingjournalcommunity works on different slices at different hours. A handoff
+Everyone on TradingJournalCommunity works on different slices at different hours. A handoff
 lets the next person (or agent) pick up your work **without reading your code
 or pinging you**.
 

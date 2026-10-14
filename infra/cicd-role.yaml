@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >-
-  GitHub Actions OIDC deploy role for Tradingjournalcommunity — the one bootstrap
+  GitHub Actions OIDC deploy role for TradingJournalCommunity — the one bootstrap
   piece, applied once from a laptop:
     aws cloudformation deploy --template-file infra/cicd-role.yaml \
       --stack-name tradejournal-cicd --capabilities CAPABILITY_NAMED_IAM
@@ -13,7 +13,7 @@ Description: >-
 Parameters:
   GitHubRepo:
     Type: String
-    Default: wakeensito/Tradingjournalcommunity
+    Default: wakeensito/TradingJournalCommunity
     Description: repo allowed to assume the role (owner/name)
   AppStackName:
     Type: String

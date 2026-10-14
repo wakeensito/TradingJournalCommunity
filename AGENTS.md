@@ -1,4 +1,4 @@
-# Agent instructions — Tradingjournalcommunity
+# Agent instructions — TradingJournalCommunity
 
 **Trading Journal v2** is a simple, fast trading journal for a discretionary day trader (futures plus options), not a quant
 tool. It runs on AWS: a React SPA served by CloudFront and S3, with an HTTP API, Python Lambda, DynamoDB, Cognito and Bedrock behind it.
