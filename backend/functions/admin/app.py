@@ -228,7 +228,7 @@ def _shape(user: dict, admins: set[str], caller_sub: str) -> dict:
     }
 
 
-def _admin_usernames() -> set[str]:
+def _admin_usernames(*, enabled_only: bool = False) -> set[str]:
     names: set[str] = set()
     kwargs = {"UserPoolId": pool(), "GroupName": ADMIN_GROUP, "Limit": 60}
     while True:
@@ -238,7 +238,9 @@ def _admin_usernames() -> set[str]:
             if err.response.get("Error", {}).get("Code") == "ResourceNotFoundException":
                 return names  # group not created yet
             raise
-        names.update(u["Username"] for u in page.get("Users", []))
+        names.update(
+            u["Username"] for u in page.get("Users", []) if not enabled_only or u.get("Enabled", True)
+        )
         token = page.get("NextToken")
         if not token:
             return names
@@ -259,11 +261,14 @@ def _get_user(username: str) -> dict:
 
 
 def _target(username: str, claims: dict) -> tuple[dict, bool, set[str]]:
-    """(user, is_self, admin usernames) for a path username."""
+    """(user, is_self, enabled admin usernames) for a path username.
+
+    Enabled only: a disabled admin can't sign in, so it never counts toward "at least one admin".
+    """
     user = _get_user(valid_username(username))
     sub = _attrs(user["Attributes"]).get("sub", "")
     is_self = (bool(sub) and sub == claims.get("sub")) or user["Username"] == claims.get("username")
-    return user, is_self, _admin_usernames()
+    return user, is_self, _admin_usernames(enabled_only=True)
 
 
 def _guard_last_admin(user: dict, admins: set[str]) -> None:
@@ -449,7 +454,12 @@ def _purge_photos(sub: str) -> int:
         page = s3().list_objects_v2(**kwargs)
         keys = [o["Key"] for o in page.get("Contents", []) if o["Key"].startswith(prefix)]
         if keys:
-            s3().delete_objects(Bucket=bucket, Delete={"Objects": [{"Key": k} for k in keys], "Quiet": True})
+            objects = [{"Key": k} for k in keys]
+            res = s3().delete_objects(Bucket=bucket, Delete={"Objects": objects, "Quiet": True})
+            if res.get("Errors"):
+                # Per-key failures don't raise. Keep the account so the admin can retry.
+                logger.error("photo purge failed", extra={"failed": len(res["Errors"])})
+                raise ApiError(500, "Couldn't delete all their screenshots. Account kept; try again.")
             count += len(keys)
         if not page.get("IsTruncated"):
             return count

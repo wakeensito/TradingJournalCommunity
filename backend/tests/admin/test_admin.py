@@ -235,6 +235,18 @@ def test_last_admin_cannot_be_demoted_or_deleted(world, people):
     assert owner.username in world.admins()
 
 
+def test_disabled_admin_does_not_count_as_last_admin(world, people):
+    # `friend` is a disabled admin with a still-valid token; it must not lock out the only enabled admin.
+    owner, friend, _ = people
+    world.idp.admin_add_user_to_group(UserPoolId=world.pool, Username=friend.username, GroupName="admin")
+    world.idp.admin_disable_user(UserPoolId=world.pool, Username=friend.username)
+    assert call("POST", f"/api/admin/users/{owner.username}/disable", friend)[0] == 409
+    assert call("DELETE", f"/api/admin/users/{owner.username}", friend)[0] == 409
+    assert world.get(owner)["Enabled"] is True
+    # Removing the disabled admin itself is fine: the owner is still an enabled admin.
+    assert call("DELETE", f"/api/admin/users/{friend.username}", owner)[0] == 200
+
+
 def test_other_admin_can_be_removed_when_two_remain(world, people):
     owner, friend, _ = people
     call("POST", f"/api/admin/users/{friend.username}/admin", owner, body={"admin": True})
@@ -269,6 +281,25 @@ def test_purge_deletes_only_that_users_data(world, people):
     assert world.photo_count(owner) == 2
     assert world.item_count(invited) == 4
     assert world.photo_count(invited) == 2
+
+
+def test_photo_purge_failure_keeps_the_account(world, people, monkeypatch):
+    owner, friend, _ = people
+    world.seed_data(friend)
+    real = admin_app.s3()
+
+    class PartialS3:
+        def __getattr__(self, name):
+            return getattr(real, name)
+
+        def delete_objects(self, **kwargs):
+            return {"Errors": [{"Key": kwargs["Delete"]["Objects"][0]["Key"], "Code": "AccessDenied"}]}
+
+    monkeypatch.setattr(admin_app, "s3", lambda: PartialS3())
+    status, body = call("DELETE", f"/api/admin/users/{friend.username}", owner, query="purge=true")
+    assert status == 500
+    assert "Account kept" in body["error"]
+    assert world.get(friend)["Username"] == friend.username
 
 
 def test_cannot_delete_self(world, people):
