@@ -19,6 +19,12 @@ Parameters:
     Type: String
     Default: tradejournal
     Description: the CloudFormation/SAM stack this role deploys
+  FmpKeyParam:
+    Type: String
+    Default: clearvest-fmp
+    Description: >-
+      SSM parameter NAME (no leading slash) of the FMP API key the market function reads.
+      Must match template.yaml's FmpKeyParam (this stack can't see the app's parameters).
 
 Resources:
   # Assumes the account already has the GitHub OIDC provider
@@ -28,6 +34,13 @@ Resources:
   #     --client-id-list sts.amazonaws.com
   DeployRole:
     Type: AWS::IAM::Role
+    # cfn-lint's IAM action DB lags AWS: apigateway:TagResource/UntagResource (called by the
+    # ApiGatewayV2 Stage handler) and cloudfront:CreateDistributionWithTags (in the CFN
+    # Distribution handler's permission list) are kept as ClearVest runs them in production.
+    Metadata:
+      cfn-lint:
+        config:
+          ignore_checks: [W3037]
     Properties:
       RoleName: !Sub '${AppStackName}-gha-deploy'
       MaxSessionDuration: 3600
@@ -216,6 +229,12 @@ Resources:
               # HTTP API (v2) + JWT authorizer + stages. API IDs are generated,
               # so no name scoping; pinned to the v2 /apis path tree in this
               # region (no REST /restapis); tags are PUT/DELETE on /tags/*.
+              # apigateway:TagResource/UntagResource are real actions the
+              # ApiGatewayV2 Stage handler calls (cfn-lint's DB lacks them -> W3037,
+              # same as ClearVest). RESIDUAL RISK: like ClearVest, this can modify
+              # or delete ANY HTTP/WebSocket API in this region (other apps' too);
+              # API Gateway paths carry no name, and ClearVest has no proven
+              # tag-gated pattern to reuse here.
               - Sid: AppHttpApi
                 Effect: Allow
                 Action:
@@ -224,53 +243,140 @@ Resources:
                   - apigateway:PUT
                   - apigateway:PATCH
                   - apigateway:DELETE
+                  - apigateway:TagResource
+                  - apigateway:UntagResource
                 Resource:
                   - !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis'
                   - !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis/*'
                   - !Sub 'arn:${AWS::Partition}:apigateway:${AWS::Region}::/tags/*'
-              # CloudFront distribution/OAC/function/response-headers policy:
-              # IDs are generated at create time and AWS-managed cache/origin
-              # request policies live outside the account, so Resource is '*'
-              # — narrowed instead to exactly the actions CFN + the deploy
-              # workflow (create-invalidation) need. No cloudfront:*.
-              - Sid: AppCloudFront
+              # ── CloudFront ── adapted from ClearVest's production-proven pattern.
+              # This account hosts OTHER sites' distributions (keenkloud.net, ClearVest,
+              # kinfolk, ...), so nothing here may write to a resource we don't own.
+              # CloudFront is global: ARNs have no region.
+              # Create actions have no usable resource-level scoping (ClearVest found
+              # scoping them implicitly denies), so they stay on '*'. A create can't
+              # touch an existing resource; CFN creates the tagged distribution via
+              # CreateDistributionWithTags, and every later write is tag-gated below.
+              - Sid: AppCloudFrontCreate
                 Effect: Allow
                 Action:
                   - cloudfront:CreateDistribution
+                  - cloudfront:CreateDistributionWithTags
+                  - cloudfront:CreateOriginAccessControl
+                  - cloudfront:CreateConnectionGroup
+                  - cloudfront:CreateFunction
+                  - cloudfront:CreateResponseHeadersPolicy
+                Resource: '*'
+              # Read-only lookups the AWS::CloudFront::Distribution handler declares in
+              # the CloudFormation registry (features unused here, but a missing
+              # permission fails the handler).
+              - Sid: AppCloudFrontHandlerReads
+                Effect: Allow
+                Action:
+                  - cloudfront:GetConnectionGroup
+                  - cloudfront:GetVpcOrigin
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:connection-group/*'
+                  - !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:vpcorigin/*'
+              # List* calls have no resource-level scoping; read-only.
+              - Sid: AppCloudFrontList
+                Effect: Allow
+                Action:
+                  - cloudfront:ListDistributions
+                  - cloudfront:ListOriginAccessControls
+                  - cloudfront:ListFunctions
+                  - cloudfront:ListResponseHeadersPolicies
+                  - cloudfront:ListCachePolicies
+                  - cloudfront:ListOriginRequestPolicies
+                Resource: '*'
+              # Reads + invalidations stay account-wide on distribution/* (harmless,
+              # and needed before the ownership tag is readable).
+              - Sid: AppCloudFrontRead
+                Effect: Allow
+                Action:
                   - cloudfront:GetDistribution
                   - cloudfront:GetDistributionConfig
-                  - cloudfront:UpdateDistribution
-                  - cloudfront:DeleteDistribution
-                  - cloudfront:ListDistributions
-                  - cloudfront:TagResource
-                  - cloudfront:UntagResource
                   - cloudfront:ListTagsForResource
-                  - cloudfront:CreateOriginAccessControl
+                  - cloudfront:CreateInvalidation
+                  - cloudfront:GetInvalidation
+                Resource: !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/*'
+              # Writes only on distributions carrying the ownership tag that
+              # template.yaml puts on CloudFrontDistribution.
+              - Sid: AppCloudFrontWriteOwn
+                Effect: Allow
+                Action:
+                  - cloudfront:UpdateDistribution
+                  - cloudfront:UpdateDistributionWithStagingConfig
+                  - cloudfront:DeleteDistribution
+                  - cloudfront:TagResource
+                Resource: !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/*'
+                Condition:
+                  StringEquals:
+                    aws:ResourceTag/tradejournal:managed-by: tradejournal-cicd
+              # First tagging of a new distribution: only if the request itself
+              # carries the ownership tag.
+              - Sid: AppCloudFrontTagNew
+                Effect: Allow
+                Action: cloudfront:TagResource
+                Resource: !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/*'
+                Condition:
+                  StringEquals:
+                    aws:RequestTag/tradejournal:managed-by: tradejournal-cicd
+              # Untag our own distributions, but never the ownership tag itself.
+              - Sid: AppCloudFrontUntagOwn
+                Effect: Allow
+                Action: cloudfront:UntagResource
+                Resource: !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/*'
+                Condition:
+                  StringEquals:
+                    aws:ResourceTag/tradejournal:managed-by: tradejournal-cicd
+                  ForAllValues:StringNotEquals:
+                    aws:TagKeys:
+                      - tradejournal:managed-by
+              # RESIDUAL RISK: OAC and response-headers-policy ARNs are random IDs and
+              # those resources aren't taggable, so writes are scoped only by ARN type
+              # (same as ClearVest's OAC statement). The role could in principle
+              # update/delete another app's OAC or custom response-headers policy.
+              - Sid: AppCloudFrontOAC
+                Effect: Allow
+                Action:
                   - cloudfront:GetOriginAccessControl
                   - cloudfront:GetOriginAccessControlConfig
                   - cloudfront:UpdateOriginAccessControl
                   - cloudfront:DeleteOriginAccessControl
-                  - cloudfront:ListOriginAccessControls
-                  - cloudfront:CreateFunction
+                Resource: !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:origin-access-control/*'
+              - Sid: AppCloudFrontResponseHeaders
+                Effect: Allow
+                Action:
+                  - cloudfront:GetResponseHeadersPolicy
+                  - cloudfront:GetResponseHeadersPolicyConfig
+                  - cloudfront:UpdateResponseHeadersPolicy
+                  - cloudfront:DeleteResponseHeadersPolicy
+                Resource: !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:response-headers-policy/*'
+              # CloudFront Function ARNs carry the function NAME, so these are
+              # name-scoped to the stack prefix (tighter than ClearVest, which has none).
+              - Sid: AppCloudFrontFunctions
+                Effect: Allow
+                Action:
                   - cloudfront:DescribeFunction
                   - cloudfront:GetFunction
                   - cloudfront:UpdateFunction
                   - cloudfront:PublishFunction
                   - cloudfront:DeleteFunction
-                  - cloudfront:ListFunctions
-                  - cloudfront:CreateResponseHeadersPolicy
-                  - cloudfront:GetResponseHeadersPolicy
-                  - cloudfront:GetResponseHeadersPolicyConfig
-                  - cloudfront:UpdateResponseHeadersPolicy
-                  - cloudfront:DeleteResponseHeadersPolicy
-                  - cloudfront:ListResponseHeadersPolicies
+                  - cloudfront:TagResource
+                  - cloudfront:UntagResource
+                  - cloudfront:ListTagsForResource
+                Resource: !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:function/${AppStackName}-*'
+              # AWS managed cache/origin-request policies the distribution references
+              # (read at create/update).
+              - Sid: AppCloudFrontManagedPolicies
+                Effect: Allow
+                Action:
                   - cloudfront:GetCachePolicy
-                  - cloudfront:ListCachePolicies
                   - cloudfront:GetOriginRequestPolicy
-                  - cloudfront:ListOriginRequestPolicies
-                  - cloudfront:CreateInvalidation
-                  - cloudfront:GetInvalidation
-                Resource: '*'
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:cache-policy/*'
+                  - !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:origin-request-policy/*'
               # Log groups (HTTP API access logs, /aws/lambda/...): any group
               # whose name contains the stack prefix.
               - Sid: AppLogGroups
@@ -290,6 +396,10 @@ Resources:
                   - !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*${AppStackName}-*:*'
               # API Gateway access-log delivery + describe calls are
               # account-level APIs with no resource-level scoping.
+              # RESIDUAL RISK: Update/DeleteLogDelivery + PutResourcePolicy on '*'
+              # could alter another app's API access-log delivery or the account's
+              # CloudWatch Logs resource policies. No name-scoping exists for these
+              # (ClearVest doesn't grant them at all).
               - Sid: AppLogDelivery
                 Effect: Allow
                 Action:
@@ -441,6 +551,14 @@ Resources:
             Resource:
               - !Sub 'arn:${AWS::Partition}:bedrock:*::foundation-model/*'
               - !Sub 'arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/*'
+          # Market function reads the shared FMP key. SecureString under the AWS
+          # managed aws/ssm key: that key's policy already lets in-account principals
+          # decrypt via SSM (kms:ViaService + kms:CallerAccount), so no kms:Decrypt
+          # is needed here. A customer-managed CMK would need kms:Decrypt on it.
+          - Sid: MarketFmpKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${FmpKeyParam}'
           - Sid: Logs
             Effect: Allow
             Action:

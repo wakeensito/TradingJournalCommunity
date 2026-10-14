@@ -310,7 +310,9 @@ def test_settings_merge_and_validate(aws):
 
 # ── photos ──────────────────────────────────────────────────────────────
 def test_upload_url_key_prefix_and_content_type(aws):
-    status, body = call("POST", "/api/photos/upload-url", {"tradeId": "t1", "contentType": "image/png", "size": 1000})
+    status, body = call(
+        "POST", "/api/photos/upload-url", {"tradeId": "t1", "contentType": "image/png", "size": 1000}
+    )
     assert status == 200
     assert body["key"].startswith(f"users/{USER_A}/trades/t1/") and body["key"].endswith(".png")
     url = urlparse(body["url"])

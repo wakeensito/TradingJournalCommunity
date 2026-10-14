@@ -18,6 +18,13 @@ Parameters:
     Description: >-
       Bedrock model for the AI coach (Converse). deepseek.v3.2 supports ON_DEMAND in us-east-1, so the bare
       foundation-model id works; an inference-profile id (us.…) also works with the IAM policy below.
+  FmpKeyParam:
+    Type: String
+    Default: clearvest-fmp
+    Description: >-
+      SSM SecureString NAME (no leading slash) holding the FMP API key. Shared with ClearVest, so it shares
+      that quota. If missing, economic events beyond Forex Factory's two weeks come back as "unavailable".
+      Must match FmpKeyParam on the tradejournal-cicd stack (the permissions boundary scopes to it).
 
 Globals:
   Function:
@@ -65,6 +72,10 @@ Resources:
         PointInTimeRecoveryEnabled: true
       SSESpecification:
         SSEEnabled: true
+      # Market cache items (pk=MARKET) carry `ttl`; reads also treat ttl <= now as a miss.
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
 
   PhotoBucket:
     Type: AWS::S3::Bucket
@@ -201,6 +212,51 @@ Resources:
             Path: /api/{proxy+}
             Method: ANY
 
+  # Market context (docs/market-context.md). Shared, non-user data behind the same JWT authorizer.
+  # These routes are more specific than ApiFunction's ANY /api/{proxy+}, so HTTP API routes them here.
+  MarketLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-${Stage}-market
+      RetentionInDays: 30
+
+  MarketFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-${Stage}-market
+      CodeUri: backend/functions/market/
+      Handler: app.lambda_handler
+      Timeout: 20
+      MemorySize: 512
+      LoggingConfig:
+        LogGroup: !Ref MarketLogGroup
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref JournalTable
+          FMP_KEY_PARAM: !Ref FmpKeyParam
+          POWERTOOLS_SERVICE_NAME: tradejournal-market
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref JournalTable }
+        # SecureString under the AWS managed aws/ssm key: no kms:Decrypt needed (its key policy allows
+        # in-account callers via SSM). A customer-managed CMK would need kms:Decrypt here and in the boundary.
+        - Statement:
+            - Effect: Allow
+              Action: ssm:GetParameter
+              Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${FmpKeyParam}
+      Events:
+        MarketDay:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/market/day/{date}
+            Method: GET
+        MarketBars:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/market/bars
+            Method: GET
+
   HttpApi:
     Type: AWS::Serverless::HttpApi
     Properties:
@@ -331,6 +387,11 @@ Resources:
   CloudFrontDistribution:
     Type: AWS::CloudFront::Distribution
     Properties:
+      # Ownership tag: the CI deploy role may only update/delete/untag distributions carrying it
+      # (the account hosts other sites' distributions). Never remove or change it.
+      Tags:
+        - Key: tradejournal:managed-by
+          Value: tradejournal-cicd
       DistributionConfig:
         Comment: !Sub ${AWS::StackName}-${Stage}
         Enabled: true
