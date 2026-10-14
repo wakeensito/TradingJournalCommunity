@@ -310,7 +310,7 @@ def test_settings_merge_and_validate(aws):
 
 # ── photos ──────────────────────────────────────────────────────────────
 def test_upload_url_key_prefix_and_content_type(aws):
-    status, body = call("POST", "/api/photos/upload-url", {"tradeId": "t1", "contentType": "image/png"})
+    status, body = call("POST", "/api/photos/upload-url", {"tradeId": "t1", "contentType": "image/png", "size": 1000})
     assert status == 200
     assert body["key"].startswith(f"users/{USER_A}/trades/t1/") and body["key"].endswith(".png")
     url = urlparse(body["url"])
@@ -321,6 +321,8 @@ def test_upload_url_key_prefix_and_content_type(aws):
 
 def test_upload_url_rejects_bad_input(aws):
     assert call("POST", "/api/photos/upload-url", {"tradeId": "t1", "contentType": "image/gif"})[0] == 400
+    # size is mandatory — without it the 8 MB cap could be bypassed
+    assert call("POST", "/api/photos/upload-url", {"tradeId": "t1", "contentType": "image/png"})[0] == 400
     assert call("POST", "/api/photos/upload-url", {"tradeId": "../x", "contentType": "image/png"})[0] == 400
     big = {"tradeId": "t1", "contentType": "image/jpeg", "size": 9 * 1024 * 1024}
     assert call("POST", "/api/photos/upload-url", big)[0] == 400

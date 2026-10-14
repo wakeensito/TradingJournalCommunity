@@ -412,12 +412,11 @@ def photo_upload_url():
         raise ApiError(400, "contentType must be image/jpeg, image/png or image/webp")
     key = f"users/{sub}/trades/{trade_id}/{uuid.uuid4()}.{PHOTO_TYPES[content_type]}"
     params = {"Bucket": os.environ["PHOTO_BUCKET"], "Key": key, "ContentType": content_type}
+    # Required: the size is signed into the URL, so S3 rejects any other length — this is what enforces the cap.
     size = data.get("size")
-    if size is not None:
-        # Optional: when the client sends the file size it is signed, so S3 rejects any other length.
-        if isinstance(size, bool) or not isinstance(size, int) or not 0 < size <= MAX_PHOTO_BYTES:
-            raise ApiError(400, "Photos must be 8 MB or smaller")
-        params["ContentLength"] = size
+    if isinstance(size, bool) or not isinstance(size, int) or not 0 < size <= MAX_PHOTO_BYTES:
+        raise ApiError(400, "Photos must be 8 MB or smaller (send the file size)")
+    params["ContentLength"] = size
     url = s3().generate_presigned_url("put_object", Params=params, ExpiresIn=UPLOAD_TTL_S)
     return {"key": key, "url": url}
 
