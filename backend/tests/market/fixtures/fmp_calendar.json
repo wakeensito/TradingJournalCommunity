@@ -1,0 +1,8 @@
+[
+  {"date": "2026-08-05 12:30:00", "country": "US", "event": "Trade Balance", "currency": "USD", "previous": -71.5, "estimate": -68.2, "actual": -66.1, "impact": "Medium"},
+  {"date": "2026-08-05 14:00:00", "country": "US", "event": "ISM Services PMI", "currency": "USD", "previous": 50.8, "estimate": 51.5, "actual": null, "impact": "High"},
+  {"date": "2026-08-06 02:00:00", "country": "US", "event": "Late Fed Speech", "currency": "USD", "previous": null, "estimate": null, "actual": null, "impact": "High"},
+  {"date": "2026-08-05 03:00:00", "country": "US", "event": "Previous ET Day Event", "currency": "USD", "previous": 1, "estimate": 1, "actual": 1, "impact": "High"},
+  {"date": "2026-08-05 09:00:00", "country": "DE", "event": "German Factory Orders", "currency": "EUR", "previous": 0.2, "estimate": 0.5, "actual": 0.4, "impact": "High"},
+  {"date": "2026-08-05 15:00:00", "country": "US", "event": "Redbook", "currency": "USD", "previous": 5.1, "estimate": null, "actual": 5.3, "impact": "Low"}
+]

@@ -26,7 +26,14 @@ FUTURES_YAHOO: dict[str, tuple[str, ...]] = {
     "ZN": ("ZN=F",),
 }
 # Cash-index option roots trade against an index Yahoo prefixes with '^'.
-INDEX_UNDERLYINGS = {"SPX": "^SPX", "SPXW": "^SPX", "NDX": "^NDX", "NDXP": "^NDX", "RUT": "^RUT", "VIX": "^VIX"}
+INDEX_UNDERLYINGS = {
+    "SPX": "^SPX",
+    "SPXW": "^SPX",
+    "NDX": "^NDX",
+    "NDXP": "^NDX",
+    "RUT": "^RUT",
+    "VIX": "^VIX",
+}
 _MONTH_YEAR = re.compile(r"[FGHJKMNQUVXZ]\d{1,4}")
 _TICKER = re.compile(r"[A-Z0-9][A-Z0-9-]{0,11}")
 _ROOTS_LONGEST_FIRST = sorted(FUTURES_YAHOO, key=len, reverse=True)
@@ -44,11 +51,12 @@ def futures_root(symbol: str) -> str | None:
     """'MNQZ5', 'MNQZ25', 'MNQ 12-25', '/ESZ5', 'MNQ' → 'MNQ'. Unknown roots → None."""
     token = _first_token(symbol)
     token = token.split("-", 1)[0]  # 'MNQ-12-25'
-    token = re.sub(r"[^A-Z0-9]", "", token)  # 'MNQ!' (TradingView continuous)
+    token = re.sub(r"\d*!$", "", token)  # 'MNQ1!' (TradingView continuous)
+    token = re.sub(r"[^A-Z0-9]", "", token)
     if token in FUTURES_YAHOO:
         return token
     for root in _ROOTS_LONGEST_FIRST:
-        if token.startswith(root) and _MONTH_YEAR.fullmatch(token[len(root):]):
+        if token.startswith(root) and _MONTH_YEAR.fullmatch(token[len(root) :]):
             return root
     return None
 

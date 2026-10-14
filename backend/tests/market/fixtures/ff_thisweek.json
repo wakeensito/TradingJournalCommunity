@@ -1,0 +1,10 @@
+[
+  {"title": "CPI m/m", "country": "USD", "date": "2026-10-13T08:30:00-04:00", "impact": "High", "forecast": "0.3%", "previous": "0.4%"},
+  {"title": "Core CPI m/m", "country": "USD", "date": "2026-10-13T08:30:00-04:00", "impact": "High", "forecast": "0.3%", "previous": "0.3%"},
+  {"title": "German ZEW Economic Sentiment", "country": "EUR", "date": "2026-10-13T05:00:00-04:00", "impact": "High", "forecast": "10.1", "previous": "9.8"},
+  {"title": "NFIB Small Business Index", "country": "USD", "date": "2026-10-13T06:00:00-04:00", "impact": "Low", "forecast": "", "previous": "100.2"},
+  {"title": "Federal Budget Balance", "country": "USD", "date": "2026-10-13T14:00:00-04:00", "impact": "Medium", "forecast": "-25.3B", "previous": ""},
+  {"title": "FOMC Member Speaks", "country": "USD", "date": "2026-10-14T00:30:00+00:00", "impact": "High", "forecast": "", "previous": ""},
+  {"title": "Bank Holiday", "country": "USD", "date": "2026-10-13T00:00:00-04:00", "impact": "Holiday", "forecast": "", "previous": ""},
+  {"title": "Retail Sales m/m", "country": "USD", "date": "2026-10-15T08:30:00-04:00", "impact": "High", "forecast": "0.5%", "previous": "0.6%"}
+]
