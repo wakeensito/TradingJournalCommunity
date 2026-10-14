@@ -236,7 +236,15 @@ Resources:
           FMP_KEY_PARAM: !Ref FmpKeyParam
           POWERTOOLS_SERVICE_NAME: tradejournal-market
       Policies:
-        - DynamoDBCrudPolicy: { TableName: !Ref JournalTable }
+        # Market data is shared cache only: scoped to items whose partition key is MARKET, so this
+        # function can never read or write any user's journal rows (pk USER#<sub>).
+        - Statement:
+            - Effect: Allow
+              Action: [dynamodb:GetItem, dynamodb:PutItem, dynamodb:UpdateItem, dynamodb:DeleteItem]
+              Resource: !GetAtt JournalTable.Arn
+              Condition:
+                ForAllValues:StringEquals:
+                  dynamodb:LeadingKeys: [MARKET]
         # SecureString under the AWS managed aws/ssm key: no kms:Decrypt needed (its key policy allows
         # in-account callers via SSM). A customer-managed CMK would need kms:Decrypt here and in the boundary.
         - Statement:

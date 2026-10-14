@@ -260,8 +260,11 @@ Resources:
               - Sid: AppCloudFrontCreate
                 Effect: Allow
                 Action:
-                  - cloudfront:CreateDistribution
-                  - cloudfront:CreateDistributionWithTags
+                  # No CreateDistribution/CreateDistributionWithTags and no "tag a new distribution"
+                  # grant: a RequestTag-gated TagResource would let this role stamp the ownership tag
+                  # onto ANOTHER site's distribution and then edit it. The distribution is created once
+                  # by a laptop deploy (scripts/deploy.sh, admin creds); CI only updates tagged ones.
+                  # Replacing the distribution therefore needs a laptop deploy.
                   - cloudfront:CreateOriginAccessControl
                   - cloudfront:CreateConnectionGroup
                   - cloudfront:CreateFunction
@@ -315,13 +318,6 @@ Resources:
                     aws:ResourceTag/tradejournal:managed-by: tradejournal-cicd
               # First tagging of a new distribution: only if the request itself
               # carries the ownership tag.
-              - Sid: AppCloudFrontTagNew
-                Effect: Allow
-                Action: cloudfront:TagResource
-                Resource: !Sub 'arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/*'
-                Condition:
-                  StringEquals:
-                    aws:RequestTag/tradejournal:managed-by: tradejournal-cicd
               # Untag our own distributions, but never the ownership tag itself.
               - Sid: AppCloudFrontUntagOwn
                 Effect: Allow
