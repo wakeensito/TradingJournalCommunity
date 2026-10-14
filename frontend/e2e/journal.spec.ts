@@ -1,5 +1,8 @@
 import { expect, test } from '@playwright/test';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import { E2E_NOTE, apiClient, deleteTestTrades, money, openApp, openQuickLog, quickLog, todayStr } from './helpers';
 
 test.describe.configure({ mode: 'serial' });

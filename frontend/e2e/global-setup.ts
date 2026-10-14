@@ -1,6 +1,9 @@
 import { chromium, type FullConfig } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** Sign in once through the real UI and save storage (the refresh token lives in localStorage). */
 export default async function globalSetup(config: FullConfig) {
