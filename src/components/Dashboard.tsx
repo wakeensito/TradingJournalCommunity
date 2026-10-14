@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { 
@@ -12,22 +12,54 @@ import {
   PieChart, 
   Pie, 
   Cell as RechartsCell, 
-  AreaChart, 
-  Area, 
-  BarChart, 
-  Bar 
+  AreaChart,
+  Area
 } from 'recharts';
-import { TrendingUp, TrendingDown, DollarSign, Target, Calendar, BarChart3, Flame, Clock, TrendingDown as TrendingDownIcon, Activity } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Target, Calendar, BarChart3, Flame, Clock, TrendingDown as TrendingDownIcon, Activity, type LucideIcon } from 'lucide-react';
 import { Trade } from '../types/trade';
 import { CalendarView } from './CalendarView';
-import { JournalAnalysisCard } from './JournalAnalysisCard';
+
+type StatTone = 'neutral' | 'green' | 'red' | 'blue' | 'orange' | 'yellow';
+
+const STAT_TONE: Record<StatTone, string> = {
+  neutral: 'text-muted-foreground/60',
+  green: 'text-green-500/70',
+  red: 'text-red-500/70',
+  blue: 'text-blue-500/70',
+  orange: 'text-orange-500/70',
+  yellow: 'text-yellow-500/70',
+};
+
+interface StatCardProps {
+  label: string;
+  value: ReactNode;
+  valueClassName?: string;
+  icon: LucideIcon;
+  tone?: StatTone;
+  children?: ReactNode;
+}
+
+function StatCard({ label, value, valueClassName, icon: Icon, tone = 'neutral', children }: StatCardProps) {
+  return (
+    <Card className="hover-glow group">
+      <CardContent className="p-6">
+        <div className="flex items-center justify-between gap-4">
+          <p className="text-sm text-muted-foreground">{label}</p>
+          <Icon className={`h-4 w-4 shrink-0 transition-opacity group-hover:opacity-100 ${STAT_TONE[tone]}`} />
+        </div>
+        <p className={`mt-3 text-2xl tabular-nums ${valueClassName ?? ''}`}>{value}</p>
+        {children ? <div className="mt-1 space-y-0.5">{children}</div> : null}
+      </CardContent>
+    </Card>
+  );
+}
 
 interface DashboardProps {
   trades: Trade[];
   onNavigateToJournal?: () => void;
 }
 
-export function Dashboard({ trades, onNavigateToJournal }: DashboardProps) {
+export function Dashboard({ trades }: DashboardProps) {
   const stats = useMemo(() => {
     // Ensure trades is an array
     if (!trades || !Array.isArray(trades)) {
@@ -219,35 +251,6 @@ export function Dashboard({ trades, onNavigateToJournal }: DashboardProps) {
     return { value: maxDD, percentage: maxDDPercentage };
   }, [cumulativePnL]);
 
-  // Calculate Trade Distribution Histogram
-  const tradeDistribution = useMemo(() => {
-    const closedTrades = trades.filter(trade => trade.status === 'closed' && trade.pnl !== undefined);
-    if (closedTrades.length === 0) return [];
-    
-    const pnls = closedTrades.map(t => t.pnl || 0);
-    const minPnL = Math.min(...pnls);
-    const maxPnL = Math.max(...pnls);
-    const range = maxPnL - minPnL;
-    const bins = 20;
-    const binSize = range / bins;
-    
-    const histogram: { range: string; count: number; pnl: number }[] = [];
-    
-    for (let i = 0; i < bins; i++) {
-      const binStart = minPnL + (i * binSize);
-      const binEnd = binStart + binSize;
-      const count = pnls.filter(pnl => pnl >= binStart && (i === bins - 1 ? pnl <= binEnd : pnl < binEnd)).length;
-      
-      histogram.push({
-        range: `$${binStart.toFixed(0)} - $${binEnd.toFixed(0)}`,
-        count,
-        pnl: (binStart + binEnd) / 2
-      });
-    }
-    
-    return histogram;
-  }, [trades]);
-
   const symbolPerformance = useMemo(() => {
     const symbolMap = new Map<string, { pnl: number, count: number }>();
     
@@ -274,7 +277,9 @@ export function Dashboard({ trades, onNavigateToJournal }: DashboardProps) {
     const monthlyMap = new Map<string, number>();
     
     trades.filter(trade => trade.status === 'closed').forEach(trade => {
-      const month = new Date(trade.date).toISOString().substring(0, 7);
+      const parsed = new Date(trade.date);
+      if (isNaN(parsed.getTime())) return; // skip trades with an unparseable date
+      const month = parsed.toISOString().substring(0, 7);
       monthlyMap.set(month, (monthlyMap.get(month) || 0) + (trade.pnl || 0));
     });
 
@@ -299,152 +304,69 @@ export function Dashboard({ trades, onNavigateToJournal }: DashboardProps) {
     <div className="space-y-6">
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="hover-glow group">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total P&L</p>
-                <p className={`text-2xl tabular-nums transition-transform group-hover:scale-110 ${stats.totalPnL >= 0 ? 'text-green-600 dark:text-green-500' : 'text-red-600 dark:text-red-500'}`}>
-                  {formatCurrency(stats.totalPnL)}
-                </p>
-              </div>
-              <DollarSign className="h-8 w-8 text-muted-foreground transition-transform group-hover:scale-110 group-hover:rotate-12" />
-            </div>
-          </CardContent>
-        </Card>
+        <StatCard
+          label="Total P&L"
+          icon={DollarSign}
+          tone={stats.totalPnL >= 0 ? 'green' : 'red'}
+          value={formatCurrency(stats.totalPnL)}
+          valueClassName={stats.totalPnL >= 0 ? 'text-green-600 dark:text-green-500' : 'text-red-600 dark:text-red-500'}
+        />
 
-        <Card className="hover-glow group">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Avg R:R Ratio</p>
-                <p className={`text-2xl tabular-nums transition-transform group-hover:scale-110 ${stats.avgRiskReward >= 2 ? 'text-green-600 dark:text-green-500' : stats.avgRiskReward >= 1 ? 'text-yellow-600 dark:text-yellow-500' : 'text-red-600 dark:text-red-500'}`}>
-                  {stats.avgRiskReward > 0 ? `1:${stats.avgRiskReward.toFixed(2)}` : 'N/A'}
-                </p>
-                <p className="text-xs text-muted-foreground tabular-nums">
-                  {stats.tradesWithRR} trades with R:R
-                </p>
-              </div>
-              <TrendingUp className="h-8 w-8 text-muted-foreground transition-transform group-hover:scale-110 group-hover:rotate-12" />
-            </div>
-          </CardContent>
-        </Card>
+        <StatCard
+          label="Avg R:R Ratio"
+          icon={TrendingUp}
+          tone={stats.avgRiskReward >= 2 ? 'green' : stats.avgRiskReward >= 1 ? 'yellow' : 'red'}
+          value={stats.avgRiskReward > 0 ? `1:${stats.avgRiskReward.toFixed(2)}` : 'N/A'}
+          valueClassName={stats.avgRiskReward >= 2 ? 'text-green-600 dark:text-green-500' : stats.avgRiskReward >= 1 ? 'text-yellow-600 dark:text-yellow-500' : 'text-red-600 dark:text-red-500'}
+        >
+          <p className="text-xs text-muted-foreground tabular-nums">{stats.tradesWithRR} trades with R:R</p>
+        </StatCard>
 
-        <Card className="hover-glow group">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Trades</p>
-                <p className="text-2xl tabular-nums transition-transform group-hover:scale-110">{stats.totalTrades}</p>
-                <div className="flex gap-2 mt-1">
-                  <Badge variant="outline" className="text-xs transition-all hover:scale-105">
-                    {stats.openTrades} open
-                  </Badge>
-                  <Badge variant="outline" className="text-xs transition-all hover:scale-105">
-                    {stats.closedTrades} closed
-                  </Badge>
-                </div>
-              </div>
-              <BarChart3 className="h-8 w-8 text-muted-foreground transition-transform group-hover:scale-110 group-hover:rotate-12" />
-            </div>
-          </CardContent>
-        </Card>
+        <StatCard label="Total Trades" icon={BarChart3} tone="blue" value={stats.totalTrades}>
+          <div className="flex gap-2 pt-1">
+            <Badge variant="outline" className="text-xs transition-all hover:scale-105">{stats.openTrades} open</Badge>
+            <Badge variant="outline" className="text-xs transition-all hover:scale-105">{stats.closedTrades} closed</Badge>
+          </div>
+        </StatCard>
 
-        <Card className="hover-glow group">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Profit Factor</p>
-                <p className="text-2xl tabular-nums transition-transform group-hover:scale-110">{stats.profitFactor.toFixed(2)}</p>
-                <p className="text-xs text-muted-foreground tabular-nums">
-                  Avg Win: {formatCurrency(stats.avgWin)}
-                </p>
-                <p className="text-xs text-muted-foreground tabular-nums">
-                  Avg Loss: {formatCurrency(stats.avgLoss)}
-                </p>
-              </div>
-              <Calendar className="h-8 w-8 text-muted-foreground transition-transform group-hover:scale-110 group-hover:rotate-12" />
-            </div>
-          </CardContent>
-        </Card>
+        <StatCard label="Profit Factor" icon={Calendar} value={stats.profitFactor.toFixed(2)}>
+          <p className="text-xs text-muted-foreground tabular-nums">Avg Win: {formatCurrency(stats.avgWin)}</p>
+          <p className="text-xs text-muted-foreground tabular-nums">Avg Loss: {formatCurrency(stats.avgLoss)}</p>
+        </StatCard>
 
-        <Card className="hover-glow group">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Average Duration</p>
-                <p className="text-2xl tabular-nums transition-transform group-hover:scale-110 text-blue-600 dark:text-blue-500">{stats.avgDuration}</p>
-                <p className="text-xs text-muted-foreground tabular-nums">
-                  {stats.tradesWithDuration} trades
-                </p>
-              </div>
-              <Clock className="h-8 w-8 text-muted-foreground transition-transform group-hover:scale-110 group-hover:rotate-12" />
-            </div>
-          </CardContent>
-        </Card>
+        <StatCard label="Average Duration" icon={Clock} tone="blue" value={stats.avgDuration} valueClassName="text-blue-600 dark:text-blue-500">
+          <p className="text-xs text-muted-foreground tabular-nums">{stats.tradesWithDuration} trades</p>
+        </StatCard>
 
-        <Card className="hover-glow group">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Current Streak</p>
-                <p className={`text-2xl tabular-nums transition-transform group-hover:scale-110 ${
-                  stats.streakType === 'win' 
-                    ? 'text-green-600 dark:text-green-500' 
-                    : stats.streakType === 'loss' 
-                    ? 'text-red-600 dark:text-red-500' 
-                    : ''
-                }`}>
-                  {stats.currentStreak > 0 ? stats.currentStreak : 'N/A'}
-                </p>
-                <p className="text-xs text-muted-foreground tabular-nums">
-                  {stats.streakType === 'win' ? `${stats.currentStreak} winning` : stats.streakType === 'loss' ? `${stats.currentStreak} losing` : 'No trades'}
-                </p>
-              </div>
-              <Flame className={`h-8 w-8 transition-transform group-hover:scale-110 group-hover:rotate-12 ${
-                stats.streakType === 'win' 
-                  ? 'text-orange-500' 
-                  : stats.streakType === 'loss' 
-                  ? 'text-red-500' 
-                  : 'text-muted-foreground'
-              }`} />
-            </div>
-          </CardContent>
-        </Card>
+        <StatCard
+          label="Current Streak"
+          icon={Flame}
+          tone={stats.streakType === 'win' ? 'orange' : stats.streakType === 'loss' ? 'red' : 'neutral'}
+          value={stats.currentStreak > 0 ? stats.currentStreak : 'N/A'}
+          valueClassName={stats.streakType === 'win' ? 'text-green-600 dark:text-green-500' : stats.streakType === 'loss' ? 'text-red-600 dark:text-red-500' : ''}
+        >
+          <p className="text-xs text-muted-foreground tabular-nums">{stats.streakType === 'win' ? `${stats.currentStreak} winning` : stats.streakType === 'loss' ? `${stats.currentStreak} losing` : 'No trades'}</p>
+        </StatCard>
 
-        <Card className="hover-glow group">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Expectancy</p>
-                <p className={`text-2xl tabular-nums transition-transform group-hover:scale-110 ${stats.expectancy >= 0 ? 'text-green-600 dark:text-green-500' : 'text-red-600 dark:text-red-500'}`}>
-                  {formatCurrency(stats.expectancy)}
-                </p>
-                <p className="text-xs text-muted-foreground tabular-nums">
-                  Per trade expected value
-                </p>
-              </div>
-              <Activity className="h-8 w-8 text-muted-foreground transition-transform group-hover:scale-110 group-hover:rotate-12" />
-            </div>
-          </CardContent>
-        </Card>
+        <StatCard
+          label="Expectancy"
+          icon={Activity}
+          tone={stats.expectancy >= 0 ? 'green' : 'red'}
+          value={formatCurrency(stats.expectancy)}
+          valueClassName={stats.expectancy >= 0 ? 'text-green-600 dark:text-green-500' : 'text-red-600 dark:text-red-500'}
+        >
+          <p className="text-xs text-muted-foreground tabular-nums">Per trade expected value</p>
+        </StatCard>
 
-        <Card className="hover-glow group">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Max Drawdown</p>
-                <p className={`text-2xl tabular-nums transition-transform group-hover:scale-110 ${maxDrawdown.value === 0 ? 'text-gray-600 dark:text-gray-500' : 'text-red-600 dark:text-red-500'}`}>
-                  {formatCurrency(maxDrawdown.value)}
-                </p>
-                <p className="text-xs text-muted-foreground tabular-nums">
-                  {maxDrawdown.percentage > 0 ? `${maxDrawdown.percentage.toFixed(1)}%` : 'No drawdown'}
-                </p>
-              </div>
-              <TrendingDownIcon className="h-8 w-8 text-muted-foreground transition-transform group-hover:scale-110 group-hover:rotate-12" />
-            </div>
-          </CardContent>
-        </Card>
+        <StatCard
+          label="Max Drawdown"
+          icon={TrendingDownIcon}
+          tone={maxDrawdown.value === 0 ? 'neutral' : 'red'}
+          value={formatCurrency(maxDrawdown.value)}
+          valueClassName={maxDrawdown.value === 0 ? 'text-gray-600 dark:text-gray-500' : 'text-red-600 dark:text-red-500'}
+        >
+          <p className="text-xs text-muted-foreground tabular-nums">{maxDrawdown.percentage > 0 ? `${maxDrawdown.percentage.toFixed(1)}%` : 'No drawdown'}</p>
+        </StatCard>
       </div>
 
       {/* Charts */}
@@ -568,61 +490,6 @@ export function Dashboard({ trades, onNavigateToJournal }: DashboardProps) {
         </Card>
 
       </div>
-
-      {/* Trade Distribution Histogram */}
-      {tradeDistribution.length > 0 && (
-        <Card className="hover-glow">
-          <CardHeader>
-            <CardTitle>Trade Distribution</CardTitle>
-            <p className="text-sm text-muted-foreground">P&L distribution across all closed trades</p>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={tradeDistribution}>
-                <CartesianGrid strokeDasharray="3 3" stroke="currentColor" opacity={0.1} />
-                <XAxis 
-                  dataKey="range"
-                  stroke="currentColor"
-                  opacity={0.5}
-                  tick={{ fontSize: 10 }}
-                  angle={-45}
-                  textAnchor="end"
-                  height={80}
-                />
-                <YAxis 
-                  stroke="currentColor"
-                  opacity={0.5}
-                  tick={{ fontSize: 12 }}
-                />
-                <Tooltip 
-                  formatter={(value: number) => [value, 'Trades']}
-                  contentStyle={{
-                    backgroundColor: 'var(--card)',
-                    border: '1px solid var(--border)',
-                    borderRadius: '8px',
-                    backdropFilter: 'blur(12px)'
-                  }}
-                />
-                <Bar 
-                  dataKey="count" 
-                  fill="#3b82f6"
-                  radius={[4, 4, 0, 0]}
-                >
-                  {tradeDistribution.map((entry, index) => (
-                    <RechartsCell 
-                      key={`cell-${index}`} 
-                      fill={entry.pnl >= 0 ? '#22c55e' : '#ef4444'} 
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Journal Analysis Card */}
-      <JournalAnalysisCard onNavigateToJournal={onNavigateToJournal} />
 
       {/* Calendar View */}
       <CalendarView trades={trades} />
