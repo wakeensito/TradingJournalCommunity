@@ -129,12 +129,6 @@ Resources:
                   - lambda:DeleteFunctionConcurrency
                 Resource:
                   - !Sub 'arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${AppStackName}-*'
-              - Sid: AppSchedules
-                Effect: Allow
-                Action: scheduler:*
-                Resource:
-                  - !Sub 'arn:${AWS::Partition}:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/default/${AppStackName}-*'
-                  - !Sub 'arn:${AWS::Partition}:scheduler:${AWS::Region}:${AWS::AccountId}:schedule-group/default'
               - Sid: AppTable
                 Effect: Allow
                 Action:
@@ -163,7 +157,33 @@ Resources:
               # (ListBucket/GetObject/PutObject/DeleteObject).
               - Sid: AppBuckets
                 Effect: Allow
-                Action: 's3:*'
+                Action:
+                  # bucket lifecycle (CloudFormation)
+                  - s3:CreateBucket
+                  - s3:DeleteBucket
+                  - s3:GetBucketLocation
+                  - s3:GetBucketPolicy
+                  - s3:PutBucketPolicy
+                  - s3:DeleteBucketPolicy
+                  - s3:GetBucketCORS
+                  - s3:PutBucketCORS
+                  - s3:GetEncryptionConfiguration
+                  - s3:PutEncryptionConfiguration
+                  - s3:GetBucketPublicAccessBlock
+                  - s3:PutBucketPublicAccessBlock
+                  - s3:GetBucketOwnershipControls
+                  - s3:PutBucketOwnershipControls
+                  - s3:GetLifecycleConfiguration
+                  - s3:PutLifecycleConfiguration
+                  - s3:GetBucketVersioning
+                  - s3:PutBucketVersioning
+                  - s3:GetBucketTagging
+                  - s3:PutBucketTagging
+                  # SPA upload (`aws s3 sync --delete`)
+                  - s3:ListBucket
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
                 Resource:
                   - !Sub 'arn:${AWS::Partition}:s3:::${AppStackName}-*'
                   - !Sub 'arn:${AWS::Partition}:s3:::${AppStackName}-*/*'
@@ -177,7 +197,21 @@ Resources:
                 Resource: '*'
               - Sid: AppCognito
                 Effect: Allow
-                Action: 'cognito-idp:*'
+                # Pool/client management only. NO Admin*/user-data actions: the account also
+                # hosts other apps' user pools (e.g. kinfolk), and userpool/* can't be name-scoped.
+                Action:
+                  - cognito-idp:DescribeUserPool
+                  - cognito-idp:UpdateUserPool
+                  - cognito-idp:DeleteUserPool
+                  - cognito-idp:CreateUserPoolClient
+                  - cognito-idp:DescribeUserPoolClient
+                  - cognito-idp:UpdateUserPoolClient
+                  - cognito-idp:DeleteUserPoolClient
+                  - cognito-idp:GetUserPoolMfaConfig
+                  - cognito-idp:SetUserPoolMfaConfig
+                  - cognito-idp:TagResource
+                  - cognito-idp:UntagResource
+                  - cognito-idp:ListTagsForResource
                 Resource: !Sub 'arn:${AWS::Partition}:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*'
               # HTTP API (v2) + JWT authorizer + stages. API IDs are generated,
               # so no name scoping; pinned to the v2 /apis path tree in this
