@@ -168,7 +168,7 @@ export function SignIn() {
             <Field
               label="New password"
               htmlFor="si-new"
-              hint="8+ characters with upper, lower, a number and a symbol."
+              hint="8+ characters with upper, lower and a number."
             >
               <div className="relative">
                 <TextInput

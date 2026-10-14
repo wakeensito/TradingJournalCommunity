@@ -113,6 +113,85 @@ export interface MockOptions {
   marketDown?: boolean;
   /** Coach route fails. */
   coachDown?: boolean;
+  /** Signed-in user is in the Cognito `admin` group (access token carries cognito:groups) → Settings shows People. */
+  admin?: boolean;
+  /** The admin users list fails (500). */
+  adminDown?: boolean;
+}
+
+// ── Admin fixtures ──────────────────────────────────────────────────────
+
+export interface MockAdminUser {
+  username: string;
+  email: string;
+  status: string;
+  enabled: boolean;
+  createdAt: string;
+  lastModified: string;
+  isAdmin: boolean;
+  isSelf: boolean;
+}
+
+export const ME = 'trader@example.com';
+export const TEMP_PASSWORD = 'Hk7mQ2pzW9xRt4Ns';
+
+export function buildAdminUsers(): MockAdminUser[] {
+  const at = '2026-10-01T12:00:00.000Z';
+  const u = (username: string, email: string, over: Partial<MockAdminUser> = {}): MockAdminUser => ({
+    username, email, status: 'CONFIRMED', enabled: true, createdAt: at, lastModified: at, isAdmin: false, isSelf: false, ...over,
+  });
+  return [
+    u('u-friend', 'friend@example.com'),
+    u('u-invited', 'invited@example.com', { status: 'FORCE_CHANGE_PASSWORD' }),
+    u('u-me', ME, { isAdmin: true, isSelf: true }),
+    u('u-old', 'old.account.with.a.very.long.address@example-brokerage.com', { enabled: false }),
+  ];
+}
+
+/** Unsigned JWT-shaped token: the SPA only decodes it for display (the API verifies real ones). */
+export function fakeAccessToken(groups: string[]): string {
+  const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url');
+  return `${b64({ alg: 'none', typ: 'JWT' })}.${b64({ sub: 'sub-me', username: 'u-me', token_use: 'access', ...(groups.length ? { 'cognito:groups': groups } : {}) })}.sig`;
+}
+
+/** Mutable in-memory admin API. Returns the users array so tests can assert against it. */
+function adminRoute(o: MockOptions, users: MockAdminUser[], calls: string[]) {
+  return async (method: string, p: string, url: URL, body: Record<string, unknown>) => {
+    if (!o.admin) return { status: 403, json: { error: 'Only admins can manage people.' } };
+    calls.push(`${method} ${p}${url.search}`);
+    if (p === '/admin/users' && method === 'GET') {
+      if (o.adminDown) return { status: 500, json: { error: 'Something went wrong on our side. Please try again.' } };
+      return { status: 200, json: users };
+    }
+    if (p === '/admin/users' && method === 'POST') {
+      const email = String(body.email ?? '');
+      if (users.some((x) => x.email === email)) return { status: 409, json: { error: 'That email already has an account.' } };
+      const now = new Date().toISOString();
+      const user: MockAdminUser = { username: `u-${users.length + 1}`, email, status: 'FORCE_CHANGE_PASSWORD', enabled: true, createdAt: now, lastModified: now, isAdmin: body.admin === true, isSelf: false };
+      users.push(user);
+      return { status: 201, json: { user, temporaryPassword: TEMP_PASSWORD } };
+    }
+    const m = p.match(/^\/admin\/users\/([^/]+)(?:\/([a-z-]+))?$/);
+    const user = m ? users.find((x) => x.username === decodeURIComponent(m[1]!)) : undefined;
+    if (!m || !user) return { status: 404, json: { error: 'That user no longer exists.' } };
+    const action = m[2];
+    if (method === 'DELETE' && !action) {
+      users.splice(users.indexOf(user), 1);
+      const purge = url.searchParams.get('purge') === 'true';
+      return { status: 200, json: { deleted: true, purged: purge ? { items: 42, photos: 3 } : { items: 0, photos: 0 } } };
+    }
+    if (action === 'disable') user.enabled = false;
+    else if (action === 'enable') user.enabled = true;
+    else if (action === 'admin') user.isAdmin = body.admin === true;
+    else if (action === 'reset-password') {
+      user.status = 'FORCE_CHANGE_PASSWORD';
+      return { status: 200, json: { user, temporaryPassword: TEMP_PASSWORD } };
+    } else if (action === 'resend') {
+      if (user.status !== 'FORCE_CHANGE_PASSWORD') return { status: 409, json: { error: 'They’ve already set a password.' } };
+      return { status: 200, json: { user, temporaryPassword: TEMP_PASSWORD } };
+    } else return { status: 404, json: { error: 'Not found' } };
+    return { status: 200, json: { user } };
+  };
 }
 
 export function buildBootstrap(o: MockOptions = {}) {
@@ -224,9 +303,17 @@ const COACH =
 export async function mockBackend(page: Page, o: MockOptions = {}) {
   const boot = buildBootstrap(o);
   await page.route('**/config.json', (r) => r.fulfill({ json: { region: 'us-east-1', userPoolId: 'us-east-1_mock', clientId: 'mock', apiBase: '/api' } }));
-  await page.route('https://cognito-idp.us-east-1.amazonaws.com/', (r) =>
-    r.fulfill({ json: { AuthenticationResult: { AccessToken: 'mock-access', ExpiresIn: 3600 } } }),
-  );
+  const adminUsers = buildAdminUsers();
+  const adminCalls: string[] = [];
+  const cognitoCalls: string[] = [];
+  const admin = adminRoute(o, adminUsers, adminCalls);
+  const accessToken = o.admin ? fakeAccessToken(['admin']) : 'mock-access';
+  await page.route('https://cognito-idp.us-east-1.amazonaws.com/', (r) => {
+    const op = (r.request().headers()['x-amz-target'] ?? '').split('.').pop() ?? '';
+    cognitoCalls.push(op);
+    if (op === 'ChangePassword' || op === 'GlobalSignOut' || op === 'RevokeToken') return r.fulfill({ json: {} });
+    return r.fulfill({ json: { AuthenticationResult: { AccessToken: accessToken, ExpiresIn: 3600 } } });
+  });
   await page.route('**/api/**', async (r) => {
     const req = r.request();
     const url = new URL(req.url());
@@ -252,11 +339,16 @@ export async function mockBackend(page: Page, o: MockOptions = {}) {
     } catch {
       body = {};
     }
+    if (p.startsWith('/admin/')) {
+      await new Promise((res) => setTimeout(res, 120));
+      const out = await admin(req.method(), p, url, body);
+      return r.fulfill({ status: out.status, json: out.json });
+    }
     if (req.method() === 'DELETE') return r.fulfill({ json: { deleted: true } });
     if (Array.isArray(body.trades)) return r.fulfill({ json: { written: body.trades.length } });
     return r.fulfill({ json: (body.merged as object) ?? body });
   });
-  return boot;
+  return Object.assign(boot, { adminUsers, adminCalls, cognitoCalls });
 }
 
 /** Signed-in state without a real Cognito: a stored refresh token + the mocked InitiateAuth above. */

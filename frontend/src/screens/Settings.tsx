@@ -1,8 +1,9 @@
-import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
-import { LogOut, Plus, Star, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { Plus, Star, X } from 'lucide-react';
 import type { Account, AccountStatus, AccountType, Settings } from '../lib/types';
 import { useData, useStore } from '../lib/store';
-import { currentEmail, signOut } from '../lib/auth';
+import { currentEmail, isAdmin, loadIsAdmin } from '../lib/auth';
+import { People, YourAccount } from '../features/People';
 import { newId } from '../lib/ids';
 import { formatMoney } from '../lib/format';
 import { todayLocal } from '../lib/dates';
@@ -20,8 +21,21 @@ export function SettingsScreen() {
   const { settings, accounts, trades } = useData();
   const [editing, setEditing] = useState<Account | 'new' | null>(null);
   const [theme, setTheme] = useTheme();
-  const [confirmOut, setConfirmOut] = useState(false);
   const email = currentEmail();
+  const [admin, setAdmin] = useState(isAdmin);
+  useEffect(() => {
+    let live = true;
+    void loadIsAdmin().then((v) => live && setAdmin(v));
+    return () => {
+      live = false;
+    };
+  }, []);
+  const hideAdmin = useCallback(() => setAdmin(false), []);
+  const section = (title: string, children: ReactNode, aside?: ReactNode, hint?: string) => (
+    <Section title={title} aside={aside} hint={hint}>
+      {children}
+    </Section>
+  );
 
   return (
     <div className="mx-auto max-w-[720px]">
@@ -68,33 +82,13 @@ export function SettingsScreen() {
           </div>
         </Section>
 
-        <Section title="You">
-          <div className="card flex flex-wrap items-center justify-between gap-3 p-4">
-            <div className="min-w-0">
-              <p className="caption">Signed in as</p>
-              <p className="truncate text-ink-1">{email ?? '—'}</p>
-            </div>
-            <Button variant="danger" onClick={() => setConfirmOut(true)}>
-              <LogOut size={16} /> Sign out
-            </Button>
-          </div>
-        </Section>
+        <YourAccount email={email} section={section} />
+        {admin && <People section={section} onForbidden={hideAdmin} />}
 
         <p className="num pb-2 text-center text-caption text-ink-3">Trading Journal v{pkg.version}</p>
       </div>
 
       {editing && <AccountSheet account={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
-      <ConfirmDialog
-        open={confirmOut}
-        title="Sign out?"
-        body="Your journal stays saved in your account. You’ll need your password to sign back in on this device."
-        confirmLabel="Sign out"
-        onCancel={() => setConfirmOut(false)}
-        onConfirm={() => {
-          setConfirmOut(false);
-          void signOut();
-        }}
-      />
     </div>
   );
 }

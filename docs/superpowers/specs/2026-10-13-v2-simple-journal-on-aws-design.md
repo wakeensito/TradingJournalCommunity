@@ -99,6 +99,23 @@ Canonical TypeScript types live in `frontend/src/lib/types.ts`. The API stores t
 | POST | `/api/photos/view-urls` | `{keys: string[]}` → `{urls: {key: url}}` (presigned GET, 1 h; keys must start with the user's prefix) |
 | POST | `/api/ai/coach` | `{from, to, question?}` → `{text}` (server loads trades+days in range, ≤ 400 trades summarized) |
 
+**Admin routes** (`AdminFunction`, `backend/functions/admin/app.py`): a separate Lambda, so only its role holds Cognito admin
+rights. Every route returns 403 unless the access token's `cognito:groups` includes `admin`. Seed the first admin with
+`scripts/make-admin.sh <email>`. `AdminUser` = `{username, email, status, enabled, createdAt, lastModified, isAdmin, isSelf}`.
+
+| Method | Path | Body → Response |
+|---|---|---|
+| GET | `/api/admin/users` | → `AdminUser[]` (sorted by email) |
+| POST | `/api/admin/users` | `{email, admin?}` → `{user, temporaryPassword}` (201; Cognito emails the invite, the UI shows the password once) |
+| POST | `/api/admin/users/{username}/disable` · `/enable` | → `{user}` (disable also signs them out everywhere) |
+| POST | `/api/admin/users/{username}/reset-password` | → `{user, temporaryPassword}` (FORCE_CHANGE_PASSWORD + global sign-out) |
+| POST | `/api/admin/users/{username}/resend` | → `{user, temporaryPassword}` (invited users only; else 409) |
+| POST | `/api/admin/users/{username}/admin` | `{admin: bool}` → `{user}` |
+| DELETE | `/api/admin/users/{username}?purge=true` | → `{deleted, purged: {items, photos}}` (purge deletes their `USER#<sub>` items and `users/<sub>/` photos first) |
+
+Guardrails (409): an admin can't disable, delete, demote or admin-reset themselves, and the last admin can't be removed or demoted.
+Group changes reach a user's token on its next refresh (≤ 60 min).
+
 Validation: unknown fields are dropped; there are size limits (notes ≤ 5,000 chars, ≤ 6 photos/trade, strings ≤ 200).
 Errors look like `{error: "message"}` with a 4xx status.
 Photo keys are `users/<sub>/trades/<tradeId>/<uuid>.<ext>`.

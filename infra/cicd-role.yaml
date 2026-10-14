@@ -210,9 +210,14 @@ Resources:
                 Resource: '*'
               - Sid: AppCognito
                 Effect: Allow
-                # Pool/client management only. NO Admin*/user-data actions: the account also
+                # Pool/client/group management only. NO Admin*/user-data actions: the account also
                 # hosts other apps' user pools (e.g. kinfolk), and userpool/* can't be name-scoped.
+                # Groups: the app stack's `admin` UserPoolGroup (CFN handler: Create/Get/Update/DeleteGroup).
                 Action:
+                  - cognito-idp:CreateGroup
+                  - cognito-idp:GetGroup
+                  - cognito-idp:UpdateGroup
+                  - cognito-idp:DeleteGroup
                   - cognito-idp:DescribeUserPool
                   - cognito-idp:UpdateUserPool
                   - cognito-idp:DeleteUserPool
@@ -535,6 +540,32 @@ Resources:
               - s3:PutObject
               - s3:DeleteObject
             Resource: !Sub 'arn:${AWS::Partition}:s3:::${AppStackName}-*/*'
+          # Admin function purge: list one user's photo prefix before deleting it.
+          - Sid: AppPhotoList
+            Effect: Allow
+            Action: s3:ListBucket
+            Resource: !Sub 'arn:${AWS::Partition}:s3:::${AppStackName}-*'
+            Condition:
+              StringLike:
+                s3:prefix: ['users/*']
+          # Admin function (Settings → People). A ceiling only: the function's own policy pins the
+          # app's pool ARN. RESIDUAL RISK: userpool/* can't be name-scoped, so a role this pipeline
+          # creates could be granted these on another app's pool in this account+region.
+          - Sid: AppUserAdmin
+            Effect: Allow
+            Action:
+              - cognito-idp:ListUsers
+              - cognito-idp:ListUsersInGroup
+              - cognito-idp:AdminGetUser
+              - cognito-idp:AdminCreateUser
+              - cognito-idp:AdminDeleteUser
+              - cognito-idp:AdminDisableUser
+              - cognito-idp:AdminEnableUser
+              - cognito-idp:AdminSetUserPassword
+              - cognito-idp:AdminUserGlobalSignOut
+              - cognito-idp:AdminAddUserToGroup
+              - cognito-idp:AdminRemoveUserFromGroup
+            Resource: !Sub 'arn:${AWS::Partition}:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*'
           # Converse / ConverseStream authorize as InvokeModel /
           # InvokeModelWithResponseStream (they are not separate IAM actions).
           # foundation-model uses region '*' because cross-region inference

@@ -81,8 +81,7 @@ const HUMAN: Record<string, string> = {
   UserNotFoundException: 'Wrong email or password.',
   PasswordResetRequiredException: 'You need to reset your password. Use "Forgot password".',
   UserNotConfirmedException: 'This account isn’t confirmed yet.',
-  InvalidPasswordException:
-    'That password doesn’t meet the rules: at least 8 characters with upper, lower, a number and a symbol.',
+  InvalidPasswordException: 'That password doesn’t meet the rules: at least 8 characters with upper, lower and a number.',
   InvalidParameterException: 'Check the fields and try again.',
   CodeMismatchException: 'That code isn’t right. Check the email and try again.',
   ExpiredCodeException: 'That code expired. Request a new one.',
@@ -228,6 +227,63 @@ export async function getAccessToken(force = false): Promise<string> {
     }
   })();
   return refreshing;
+}
+
+/** Decoded JWT payload (no verification: display only — the API enforces every permission server-side). */
+export function decodeJwt(token: string): Record<string, unknown> | null {
+  const part = token.split('.')[1];
+  if (!part) return null;
+  try {
+    const b64 = part.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(part.length / 4) * 4, '=');
+    const json = decodeURIComponent(
+      [...atob(b64)].map((c) => `%${c.charCodeAt(0).toString(16).padStart(2, '0')}`).join(''),
+    );
+    const v = JSON.parse(json) as unknown;
+    return v && typeof v === 'object' ? (v as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Cognito groups from the current access token (the same token the API checks). */
+export function currentGroups(): string[] {
+  const g = access ? decodeJwt(access.token)?.['cognito:groups'] : undefined;
+  return Array.isArray(g) ? g.filter((x): x is string => typeof x === 'string') : [];
+}
+
+export function isAdmin(): boolean {
+  return currentGroups().includes('admin');
+}
+
+/** Ensure a fresh access token, then report admin membership (false when signed out or offline). */
+export async function loadIsAdmin(): Promise<boolean> {
+  try {
+    await getAccessToken();
+  } catch {
+    return false;
+  }
+  return isAdmin();
+}
+
+export async function changePassword(oldPassword: string, newPassword: string): Promise<void> {
+  const token = await getAccessToken();
+  try {
+    await cognito('ChangePassword', { PreviousPassword: oldPassword, ProposedPassword: newPassword, AccessToken: token });
+  } catch (e) {
+    if (e instanceof AuthError && e.code === 'NotAuthorizedException') {
+      throw new AuthError(e.code, 'Your current password isn’t right.');
+    }
+    throw e;
+  }
+}
+
+/** Revoke every refresh token for this user (all devices), then sign this device out. */
+export async function globalSignOut(): Promise<void> {
+  const token = await getAccessToken();
+  await cognito('GlobalSignOut', { AccessToken: token });
+  access = null;
+  setStored(null);
+  emit(false);
 }
 
 export async function signOut(): Promise<void> {
