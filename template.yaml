@@ -140,6 +140,11 @@ Resources:
     UpdateReplacePolicy: Retain
     Properties:
       UserPoolName: !Sub ${AWS::StackName}-${Stage}-users
+      # Ownership tag: the CI deploy role may only change this pool, and the AppBoundary only lets function roles
+      # run Cognito admin actions on pools, that carry it (the account hosts other apps' pools). Never remove or
+      # change it: AdminFunction stops working the moment it's gone.
+      UserPoolTags:
+        tradejournal:managed-by: tradejournal-cicd
       UsernameAttributes: [email]
       AutoVerifiedAttributes: [email]
       MfaConfiguration: "OFF"

@@ -100,7 +100,8 @@ Canonical TypeScript types live in `frontend/src/lib/types.ts`. The API stores t
 | POST | `/api/ai/coach` | `{from, to, question?}` → `{text}` (server loads trades+days in range, ≤ 400 trades summarized) |
 
 **Admin routes** (`AdminFunction`, `backend/functions/admin/app.py`): a separate Lambda, so only its role holds Cognito admin
-rights. Every route returns 403 unless the access token's `cognito:groups` includes `admin`. Seed the first admin with
+rights. Every route returns 403 unless the access token's `cognito:groups` includes `admin` AND, checked live in Cognito, the
+caller is still an enabled member of `admin` (the claim alone is stale for up to an hour). Seed the first admin with
 `scripts/make-admin.sh <email>`. `AdminUser` = `{username, email, status, enabled, createdAt, lastModified, isAdmin, isSelf}`.
 
 | Method | Path | Body → Response |
@@ -114,6 +115,8 @@ rights. Every route returns 403 unless the access token's `cognito:groups` inclu
 | DELETE | `/api/admin/users/{username}?purge=true` | → `{deleted, purged: {items, photos}}` (purge deletes their `USER#<sub>` items and `users/<sub>/` photos first) |
 
 Guardrails (409): an admin can't disable, delete, demote or admin-reset themselves, and the last admin can't be removed or demoted.
+Demote and disable re-count enabled admins after the change and roll back if none remain; delete re-checks right before
+the (irreversible) delete.
 Group changes reach a user's token on its next refresh (≤ 60 min).
 
 Validation: unknown fields are dropped; there are size limits (notes ≤ 5,000 chars, ≤ 6 photos/trade, strings ≤ 200).

@@ -9,9 +9,14 @@ Routes (behind the HTTP API Cognito JWT authorizer; every one also requires `adm
   POST   /api/admin/users/{username}/admin  {admin}     → {user}
   DELETE /api/admin/users/{username}?purge=true         → {deleted, purged: {items, photos}}
 
+Authorization is checked twice: the JWT `cognito:groups` claim (cheap, rejects most callers), then LIVE
+against Cognito: the caller must still be an enabled member of `admin` right now. A token keeps its groups
+claim for up to an hour after a demotion or disable, so the claim alone is stale privilege.
+
 Guardrails: an admin can't disable, delete, demote or admin-reset themselves, and the last admin can never be
-removed or demoted. Separate from the journal API on purpose: only this function's role holds Cognito
-admin rights.
+removed or demoted (checked before the change, and re-checked after it so concurrent admin-on-admin requests
+can't leave zero admins; see `_ensure_admin_left`). Separate from the journal API on purpose: only this
+function's role holds Cognito admin rights.
 Never log emails, usernames or passwords — counts and action names only.
 """
 
@@ -161,6 +166,14 @@ def require_admin() -> dict:
         raise ApiError(401, "Please sign in.")
     if ADMIN_GROUP not in parse_groups(claims.get("cognito:groups")):
         raise ApiError(403, "Only admins can manage people.")
+    # Live re-check: one ListUsersInGroup read (the group is tiny) answers both "still in `admin`?" and
+    # "still enabled?", with no new IAM action (so no deploy-ordering gap). Matched on `sub` (immutable,
+    # unique), not the username claim. A user demoted, disabled or deleted after their token was minted
+    # fails here although the claim still says admin.
+    me = next((u for u in _admin_members() if _attrs(u.get("Attributes")).get("sub") == sub), None)
+    if me is None or not me.get("Enabled", True):
+        logger.info("stale admin claim rejected")
+        raise ApiError(403, "Your admin access has changed. Sign out and back in.")
     return claims
 
 
@@ -228,23 +241,26 @@ def _shape(user: dict, admins: set[str], caller_sub: str) -> dict:
     }
 
 
-def _admin_usernames(*, enabled_only: bool = False) -> set[str]:
-    names: set[str] = set()
+def _admin_members() -> list[dict]:
+    """Every user in the `admin` group (ListUsers shape: Username / Attributes / Enabled), read live."""
+    users: list[dict] = []
     kwargs = {"UserPoolId": pool(), "GroupName": ADMIN_GROUP, "Limit": 60}
     while True:
         try:
             page = cognito().list_users_in_group(**kwargs)
         except ClientError as err:
             if err.response.get("Error", {}).get("Code") == "ResourceNotFoundException":
-                return names  # group not created yet
+                return users  # group not created yet
             raise
-        names.update(
-            u["Username"] for u in page.get("Users", []) if not enabled_only or u.get("Enabled", True)
-        )
+        users.extend(page.get("Users", []))
         token = page.get("NextToken")
         if not token:
-            return names
+            return users
         kwargs["NextToken"] = token
+
+
+def _admin_usernames(*, enabled_only: bool = False) -> set[str]:
+    return {u["Username"] for u in _admin_members() if not enabled_only or u.get("Enabled", True)}
 
 
 def _get_user(username: str) -> dict:
@@ -271,9 +287,31 @@ def _target(username: str, claims: dict) -> tuple[dict, bool, set[str]]:
     return user, is_self, _admin_usernames(enabled_only=True)
 
 
+_LAST_ADMIN = "There must always be at least one admin."
+
+
 def _guard_last_admin(user: dict, admins: set[str]) -> None:
     if user["Username"] in admins and len(admins) <= 1:
-        raise ApiError(409, "There must always be at least one admin.")
+        raise ApiError(409, _LAST_ADMIN)
+
+
+def _ensure_admin_left(rollback) -> None:
+    """Re-count enabled admins live AFTER a demote/disable; if none are left, undo the change and 409.
+
+    The pre-change guard is check-then-act: two admins demoting/disabling each other at the same moment can
+    both pass it and leave zero admins. Re-reading after our own write closes that: whichever request
+    re-counts last sees zero and rolls back (both may, which is the safe outcome; either can simply retry).
+    """
+    if _admin_usernames(enabled_only=True):
+        return
+    try:
+        rollback()
+    except ClientError:
+        logger.exception("rollback failed: no enabled admin left; restore one with scripts/make-admin.sh")
+        msg = "That change left no admin and couldn't be undone. Run scripts/make-admin.sh."
+        raise ApiError(500, msg) from None
+    logger.warning("change rolled back: it would have left no enabled admin")
+    raise ApiError(409, _LAST_ADMIN)
 
 
 def _respond_user(username: str, claims: dict, **extra) -> dict:
@@ -335,6 +373,7 @@ def disable_user(username: str):
         raise ApiError(409, "You can't disable your own account.")
     _guard_last_admin(user, admins)
     cognito().admin_disable_user(UserPoolId=pool(), Username=user["Username"])
+    _ensure_admin_left(lambda: cognito().admin_enable_user(UserPoolId=pool(), Username=user["Username"]))
     cognito().admin_user_global_sign_out(UserPoolId=pool(), Username=user["Username"])
     logger.info("user disabled")
     return _respond_user(user["Username"], claims)
@@ -402,6 +441,11 @@ def set_admin(username: str):
         cognito().admin_remove_user_from_group(
             UserPoolId=pool(), Username=user["Username"], GroupName=ADMIN_GROUP
         )
+        _ensure_admin_left(
+            lambda: cognito().admin_add_user_to_group(
+                UserPoolId=pool(), Username=user["Username"], GroupName=ADMIN_GROUP
+            )
+        )
     logger.info("admin changed", extra={"admin": want})
     return _respond_user(user["Username"], claims)
 
@@ -421,7 +465,19 @@ def delete_user(username: str):
             raise ApiError(500, "Couldn't find that user's data id. Nothing was deleted.")
         # Data first, account last: if the purge fails, the user still exists and the admin can retry.
         purged = {"items": _purge_items(sub), "photos": _purge_photos(sub)}
+    # Delete can't be rolled back, so re-verify live right before it: excluding the target, at least one
+    # enabled admin must remain (normally the caller, who was live-verified in require_admin and can't be
+    # the target). RESIDUAL WINDOW: between this read and AdminDeleteUser, a concurrent request could
+    # disable/demote the caller; that request's own post-change re-count still sees the target (not deleted
+    # yet), so it won't roll back, and the pool could end with zero enabled admins. It needs two admins
+    # acting on each other within milliseconds and is recoverable by the owner (scripts/make-admin.sh), so
+    # we log loudly instead of locking. (If this trips after a purge, the data is gone but the account and
+    # every admin remain: the safe side to fail on.)
+    if not _admin_usernames(enabled_only=True) - {user["Username"]}:
+        raise ApiError(409, _LAST_ADMIN)
     cognito().admin_delete_user(UserPoolId=pool(), Username=user["Username"])
+    if not _admin_usernames(enabled_only=True):
+        logger.error("no enabled admin left after delete; seed one with scripts/make-admin.sh")
     logger.info("user deleted", extra=purged)
     return {"deleted": True, "purged": purged}
 
