@@ -36,7 +36,7 @@ Response:
 - `changePct` is in percent. VIX `change` is in points.
 - Dates outside `2000-01-01` to today + 31 days return `400`.
 
-### `GET /api/market/bars?symbol=&date=&assetType=futures|option|stock&underlying=`
+### `GET /api/market/bars?symbol=&date=&assetType=futures|option|stock&underlying=&from=&to=`
 
 Response:
 
@@ -45,6 +45,11 @@ Response:
 ```
 
 - `t` is epoch seconds.
+- `from`/`to` (optional) are the trade window as ET `HH:MM` on `date` (`to` wins; `from` is used when there's no exit). Bad values → `400`.
+- **Yahoo lags 5–15 minutes.** While the day is *recent* (today, or until 00:30 ET the next day), no bars yet — or bars
+  whose last candle ends before `to` — return `200` with `"pending": true, "retryAfterSec": 120` (bars may be partial).
+  The client retries; it is never an error. Today on a Saturday (or Sunday before 18:00 ET) is `market-closed` instead.
+- A settled day with no bars at all (weekend, holiday) returns `200 {"bars": [], "reason": "market-closed"}`.
 - Bars cover the whole ET calendar day (00:00–24:00 ET, `prepost=True`), so they include pre/post-market and the futures overnight session.
 - Interval rules:
   - `1m` if the date is less than 7 days old.
@@ -54,7 +59,6 @@ Response:
   - Future date: `400`.
   - Bad symbol or assetType: `400`.
   - Unmapped futures root: `404`.
-  - No bars that day: `404`.
   - Yahoo failing for every candidate: `502`.
 - Symbol mapping:
   - **Futures:** the month code is stripped (`MNQZ5`, `MNQZ25`, `MNQ 12-25`, `/MNQZ5` and `MNQ1!` all become `MNQ`), then mapped to Yahoo continuous contracts. The micro contract is tried first, then the full-size one (same price):
@@ -88,10 +92,10 @@ Event details:
 | sk | Lifetime |
 |---|---|
 | `DAY#<date>` | Past day with indices + VIX + events all present: **forever** (no `ttl`). Past day complete except events `unavailable`: 24 h. Today, future, or incomplete: 30 min. |
-| `BARS#<yahooSymbol>#<date>#<interval>` | Past day: forever. Today: 2 min. Items over 350 KB are skipped (a 24 h day of 1m bars is about 70 KB). |
+| `BARS#<yahooSymbol>#<date>#<interval>` | Settled day: forever. Recent day (see above): 60 s. Empty results are never cached. Items over 350 KB are skipped (a 24 h day of 1m bars is about 70 KB). |
 | `FF#<thisweek\|nextweek>#<weekStart>` | 1 h |
 
-Reads treat `ttl <= now` as a miss, because DynamoDB TTL deletes expired items lazily. Cache read/write errors only cause a fresh fetch. The browser also caches in memory: past days indefinitely, today for 5 minutes, failures for 60 seconds.
+Reads treat `ttl <= now` as a miss, because DynamoDB TTL deletes expired items lazily. Cache read/write errors only cause a fresh fetch. The browser also caches in memory: past days indefinitely, today for 5 minutes, day-strip failures for 60 seconds. Bars: settled days indefinitely, today/yesterday for 60 s, and **failures and `pending` results are never cached** (the next open or Retry asks again).
 
 **Security:**
 - The FMP key is read once per cold start with `WithDecryption=True` and is never logged.
@@ -221,7 +225,10 @@ UI behaviour:
   - An exit clock earlier than the entry is treated as crossing midnight.
   - With no entry time, the chart shows the 9:30–16:00 ET session.
 - **Chart: options.** Entry/exit prices are premiums, so options get time markers only (no price lines on the underlying).
-- **Chart: empty states.** Trades older than 60 days show "Chart unavailable for trades older than 60 days", with no request made. Any other failure shows "Chart unavailable for this trade".
+- **Chart: empty states.** Trades older than 60 days show "Chart unavailable for trades older than 60 days", with no request made. Otherwise:
+  - `pending` → the candles that exist (if any) plus a calm note, "Market data for this time isn’t in yet — usually 10–15 min", with a small spinner. It auto-retries every `retryAfterSec` while the sheet is open, and after 20 min swaps the spinner for a Retry button.
+  - `reason: market-closed` → "Market was closed that day".
+  - A real failure → "Chart unavailable" with a working Retry button (44px target).
 - **Chart: touch.** `touch-action: pan-y`, so a horizontal drag scrubs the crosshair and a vertical drag scrolls the sheet.
 
 ## Tests

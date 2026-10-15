@@ -1,13 +1,14 @@
-import { useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
 import { useData, useStore } from '../lib/store';
 import { useToast } from '../ui/Toast';
 import { Sheet } from '../ui/Sheet';
-import { Button, cx } from '../ui/controls';
+import { Button, Chip, cx } from '../ui/controls';
 import { Money } from '../ui/Money';
 import { SessionTape } from '../ui/SessionTape';
 import { dayLabel, pushRecentSymbol } from '../app/domain';
-import { todayLocal } from '../lib/dates';
+import { addDays, nowTimeLocal, todayLocal } from '../lib/dates';
+import { FUTURE_TIME_HINT, defaultLogDate, impossibleTimeFix } from '../lib/logDate';
 import { blankDraft, lastAccountId, rememberAccount, useTradeDraft } from './tradeDraft';
 import { CoreFields, DetailFields, PnlPreview, acceptImages, imagesFromClipboard, submitOnEnter } from './TradeFields';
 
@@ -31,12 +32,18 @@ function QuickLogInner({ date, onClose }: { date: string | null; onClose: () => 
   const { saveTrade, saveSettings, uploadPhoto } = useStore();
   const toast = useToast();
   const { settings, accounts, trades } = data;
+  // Why the date isn't today: 'yesterday' = late-night default (nothing logged today yet), 'future' = the time typed
+  // hasn't happened yet today. Either shows a "Yesterday" chip that switches back to today.
+  const [dateHint, setDateHint] = useState<'yesterday' | 'future' | null>(() =>
+    !date && defaultLogDate(new Date(), trades.map((t) => t.date)).yesterday ? 'yesterday' : null,
+  );
 
   const draft = useTradeDraft(
     () => {
       const b = blankDraft({ symbol: settings.recentSymbols[0] ?? '', accountId: lastAccountId(accounts, settings) });
-      if (date && date !== b.date) {
-        b.date = date;
+      const target = date ?? (dateHint === 'yesterday' ? addDays(b.date, -1) : null);
+      if (target && target !== b.date) {
+        b.date = target;
         b.time = '';
       }
       return b;
@@ -45,6 +52,23 @@ function QuickLogInner({ date, onClose }: { date: string | null; onClose: () => 
     trades,
   );
   const { d, setD, valid, errors, build } = draft;
+
+  // A time later than now can't be today: move the date to yesterday (the trader can still change it back).
+  // Keyed on the time only, so picking a date by hand afterwards is respected.
+  useEffect(() => {
+    const fix = impossibleTimeFix(d.date, d.time, new Date());
+    if (fix) {
+      setD((s) => ({ ...s, date: fix }));
+      setDateHint('future');
+    }
+  }, [d.time]);
+
+  const yesterday = addDays(todayLocal(), -1);
+  const showYesterday = dateHint !== null && d.date === yesterday;
+  const switchToToday = () => {
+    setD((s) => ({ ...s, date: todayLocal(), time: !s.time || impossibleTimeFix(todayLocal(), s.time, new Date()) ? nowTimeLocal() : s.time }));
+    setDateHint(null);
+  };
 
   const [details, setDetails] = useState(false);
   const [showErrors, setShowErrors] = useState(false);
@@ -167,6 +191,17 @@ function QuickLogInner({ date, onClose }: { date: string | null; onClose: () => 
               <Money value={success.net} flatBand={settings.breakevenBand} className="text-[17px]" />
             </div>
             <SessionTape trades={dayTrades} size="sm" band={settings.breakevenBand} animateId={success.id} />
+          </div>
+        )}
+
+        {showYesterday && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1" data-testid="ql-yesterday">
+            <Chip selected onClick={switchToToday} aria-label="Logging for yesterday. Tap to log for today instead">
+              Yesterday
+            </Chip>
+            <span role="status" className="text-caption text-ink-3">
+              {dateHint === 'future' ? FUTURE_TIME_HINT : 'Tap to log for today'}
+            </span>
           </div>
         )}
 

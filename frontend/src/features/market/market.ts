@@ -50,6 +50,11 @@ export interface MarketBars {
   interval: '1m' | '5m';
   bars: Bar[];
   tz: 'America/New_York';
+  /** Yahoo hasn't published bars for (all of) the trade window yet — ask again in `retryAfterSec`. */
+  pending?: boolean;
+  retryAfterSec?: number;
+  /** 'market-closed': a settled day with no bars at all (weekend or holiday). */
+  reason?: 'market-closed';
 }
 
 export interface BarsRequest {
@@ -57,6 +62,9 @@ export interface BarsRequest {
   date: string;
   assetType: AssetType;
   underlying?: string;
+  /** The trade window as ET 'HH:MM' on `date`, so the server can say when bars don't reach it yet. */
+  from?: string;
+  to?: string;
 }
 
 export const MAX_INTRADAY_DAYS = 60;
@@ -122,7 +130,14 @@ export function parseMarketBars(x: unknown): MarketBars | null {
     bars.push({ t, o, h: Math.max(h, o, c), l: Math.min(l, o, c), c, v: num(b.v) ?? 0 });
   }
   bars.sort((a, b) => a.t - b.t);
-  return { symbol: x.symbol, interval, bars, tz: ET };
+  const out: MarketBars = { symbol: x.symbol, interval, bars, tz: ET };
+  if (x.pending === true) {
+    out.pending = true;
+    const retry = num(x.retryAfterSec);
+    out.retryAfterSec = retry === null ? 120 : Math.min(600, Math.max(1, retry));
+  }
+  if (x.reason === 'market-closed') out.reason = 'market-closed';
+  return out;
 }
 
 // ── Paths ──────────────────────────────────────────────────────────────
@@ -131,16 +146,28 @@ export const marketDayPath = (date: string) => `/market/day/${encodeURIComponent
 export function marketBarsPath(r: BarsRequest): string {
   const q = new URLSearchParams({ symbol: r.symbol, date: r.date, assetType: r.assetType });
   if (r.underlying) q.set('underlying', r.underlying);
+  if (r.from) q.set('from', r.from);
+  if (r.to) q.set('to', r.to);
   return `/market/bars?${q.toString()}`;
 }
 
-export function barsRequestForTrade(t: Pick<Trade, 'symbol' | 'date' | 'assetType' | 'option'>): BarsRequest {
-  return {
+export function barsRequestForTrade(
+  t: Pick<Trade, 'symbol' | 'date' | 'assetType' | 'option'> & Partial<Pick<Trade, 'time' | 'exitTime'>>,
+): BarsRequest {
+  const req: BarsRequest = {
     symbol: t.symbol,
     date: t.date,
     assetType: t.assetType,
     ...(t.assetType === 'option' && t.option?.underlying ? { underlying: t.option.underlying } : {}),
   };
+  // Only send the window when it lands on the requested ET day (a trader outside ET, or an exit past midnight,
+  // can fall on another day; then the server just returns the day as-is).
+  const { entryT, exitT } = tradeMarks({ date: t.date, time: t.time, exitTime: t.exitTime });
+  const onDay = (s: number | null): s is number => s !== null && etDate(s) === t.date;
+  if (onDay(entryT)) req.from = etTime(entryT);
+  if (onDay(exitT)) req.to = etTime(exitT);
+  else if (req.from) req.to = req.from;
+  return req;
 }
 
 // ── Dates ──────────────────────────────────────────────────────────────
@@ -170,6 +197,13 @@ const etClock = new Intl.DateTimeFormat('en-US', { timeZone: ET, hour: '2-digit'
 /** Epoch seconds → 'HH:MM' on the New York clock. */
 export function etTime(epochSec: number): string {
   return etClock.format(new Date(epochSec * 1000));
+}
+
+const etDay = new Intl.DateTimeFormat('en-CA', { timeZone: ET, year: 'numeric', month: '2-digit', day: '2-digit' });
+
+/** Epoch seconds → 'YYYY-MM-DD' on the New York calendar. */
+export function etDate(epochSec: number): string {
+  return etDay.format(new Date(epochSec * 1000));
 }
 
 /** '08:30' → '8:30' (plan text and pills read better without the leading zero). */

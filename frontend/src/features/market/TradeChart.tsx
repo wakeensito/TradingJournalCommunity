@@ -5,7 +5,9 @@
 
 import {
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
   type RefObject,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -13,7 +15,7 @@ import {
 } from 'react';
 import type { Trade } from '@/lib/types';
 import { formatPrice } from '@/lib/format';
-import { cx } from '@/ui/controls';
+import { Spinner, cx } from '@/ui/controls';
 import {
   type ApiGet,
   type Bar,
@@ -41,43 +43,121 @@ export interface TradeChartProps {
 }
 
 const OLD_MESSAGE = 'Chart unavailable for trades older than 60 days';
+export const PENDING_MESSAGE = 'Market data for this time isn’t in yet — usually 10–15 min';
+/** Stop auto-retrying a pending chart after this long; a Retry button takes over. */
+export const PENDING_GIVE_UP_MS = 20 * 60_000;
 
 export function TradeChart({ trade, apiGet, height = 240, className }: TradeChartProps) {
   const tooOld = barsTooOld(trade.date);
   const req = useMemo(
     () => barsRequestForTrade(trade),
     // Only these fields change the request; depending on `trade` would refetch on every edit.
-    [trade.symbol, trade.date, trade.assetType, trade.option?.underlying],
+    [trade.symbol, trade.date, trade.assetType, trade.option?.underlying, trade.time, trade.exitTime],
   );
-  const { data, loading, error } = useMarketBars(apiGet, tooOld ? null : req);
+  const { data, loading, error, reload } = useMarketBars(apiGet, tooOld ? null : req);
   const [ref, width] = useWidth<HTMLDivElement>();
+  const pending = !!data?.pending && !error;
+  const gaveUp = usePendingRetry(pending, data?.retryAfterSec ?? 120, reload);
 
+  const pendingNote = pending ? <PendingNote gaveUp={gaveUp} busy={loading} onRetry={reload} /> : null;
   let body: JSX.Element;
   if (tooOld || (error?.status === 404 && /60 days/.test(error.message))) {
     body = <ChartEmpty height={height} text={OLD_MESSAGE} />;
   } else if (loading && !data) {
     body = <div aria-hidden className="skeleton w-full" style={{ height }} />;
-  } else if (error || !data || data.bars.length === 0) {
-    body = <ChartEmpty height={height} text="Chart unavailable for this trade" />;
+  } else if (error || !data) {
+    body = (
+      <ChartEmpty height={height}>
+        <span>Chart unavailable</span>
+        <RetryButton onClick={reload} busy={loading} />
+      </ChartEmpty>
+    );
+  } else if (data.bars.length === 0) {
+    body = pending ? (
+      <ChartEmpty height={height}>{pendingNote}</ChartEmpty>
+    ) : data.reason === 'market-closed' ? (
+      <ChartEmpty height={height} text="Market was closed that day" />
+    ) : (
+      <ChartEmpty height={height}>
+        <span>No chart data for this day</span>
+        <RetryButton onClick={reload} busy={loading} />
+      </ChartEmpty>
+    );
   } else if (width > 0) {
-    body = <Candles trade={trade} bars={data.bars} symbol={data.symbol} interval={data.interval} width={width} height={height} />;
+    body = (
+      <>
+        <Candles trade={trade} bars={data.bars} symbol={data.symbol} interval={data.interval} width={width} height={height} />
+        {pendingNote && <div className="mt-1">{pendingNote}</div>}
+      </>
+    );
   } else {
     body = <div style={{ height }} />;
   }
   return (
-    <div ref={ref} className={cx('w-full min-w-0', className)}>
+    <div ref={ref} className={cx('w-full min-w-0', className)} data-testid="trade-chart">
       {body}
     </div>
   );
 }
 
-function ChartEmpty({ height, text }: { height: number; text: string }) {
+/** While `pending`, call `reload` every `retryAfterSec`; after PENDING_GIVE_UP_MS stop and report `true`. */
+function usePendingRetry(pending: boolean, retryAfterSec: number, reload: () => void): boolean {
+  const since = useRef<number | null>(null);
+  const [gaveUp, setGaveUp] = useState(false);
+  const [tick, setTick] = useState(0);
+  if (!pending && since.current !== null) since.current = null;
+  useEffect(() => {
+    if (!pending) {
+      setGaveUp(false);
+      return;
+    }
+    const start = (since.current ??= Date.now());
+    if (Date.now() - start >= PENDING_GIVE_UP_MS) {
+      setGaveUp(true);
+      return;
+    }
+    const id = window.setTimeout(() => {
+      reload();
+      setTick((n) => n + 1);
+    }, retryAfterSec * 1000);
+    return () => window.clearTimeout(id);
+  }, [pending, retryAfterSec, reload, tick]);
+  return gaveUp;
+}
+
+function PendingNote({ gaveUp, busy, onRetry }: { gaveUp: boolean; busy: boolean; onRetry: () => void }) {
+  return (
+    <div role="status" className="flex min-h-11 items-center justify-center gap-2 text-caption text-ink-3" data-testid="chart-pending">
+      {!gaveUp && <Spinner size={12} />}
+      <span>{PENDING_MESSAGE}</span>
+      {gaveUp && <RetryButton onClick={onRetry} busy={busy} />}
+    </div>
+  );
+}
+
+function RetryButton({ onClick, busy }: { onClick: () => void; busy: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={busy}
+      aria-busy={busy || undefined}
+      className="inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-control px-3 text-body text-brand hover:text-ink-1 disabled:opacity-60"
+    >
+      {busy && <Spinner size={12} />}
+      Retry
+    </button>
+  );
+}
+
+function ChartEmpty({ height, text, children }: { height: number; text?: string; children?: ReactNode }) {
   return (
     <div
-      className="flex items-center justify-center rounded-[10px] border border-dashed border-line-strong bg-inset px-4 text-center text-body text-ink-3"
-      style={{ height: Math.min(height, 96) }}
+      className="flex flex-wrap items-center justify-center gap-x-1 rounded-[10px] border border-dashed border-line-strong bg-inset px-4 text-center text-body text-ink-3"
+      style={{ minHeight: Math.min(height, 96) }}
     >
       {text}
+      {children}
     </div>
   );
 }

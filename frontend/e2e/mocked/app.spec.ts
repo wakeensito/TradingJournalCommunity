@@ -1,7 +1,7 @@
 // Backend-free checks: layout at every width, touch targets, and "no dead buttons".
 //   npx playwright test -c playwright.mock.config.ts
 import { expect, test, type Page } from '@playwright/test';
-import { mockBackend, signIn } from './fixtures';
+import { mockBackend, signIn, todayStr } from './fixtures';
 
 const ROUTES = ['today', 'calendar', 'trades', 'insights', 'settings'] as const;
 
@@ -117,6 +117,24 @@ test('quick log: targets, alignment, and the 6-step happy path', async ({ page, 
   expect(errors).toEqual([]);
 });
 
+test('quick log: a time that hasn’t happened yet today flips the date to yesterday, with a chip back to today', async ({ page }) => {
+  await page.clock.setFixedTime(new Date(`${todayStr()}T10:00:00`));
+  await mockBackend(page);
+  await signIn(page);
+  await open(page, 'today');
+  await page.getByRole('button', { name: /^Log a trade/ }).locator('visible=true').first().click();
+  const ql = page.getByTestId('quick-log');
+  await expect(ql.getByTestId('ql-yesterday')).toHaveCount(0); // 10:00 with trades today: today, no chip
+  await ql.getByRole('button', { name: /^Add details/ }).click();
+  await ql.locator('#tf-time').fill('23:30');
+  const chip = ql.getByTestId('ql-yesterday');
+  await expect(chip).toContainText('Set to yesterday — that time hasn’t happened yet today');
+  await expect(ql.locator('#tf-date')).not.toHaveValue(todayStr());
+  await chip.getByRole('button', { name: /Logging for yesterday/ }).click();
+  await expect(ql.locator('#tf-date')).toHaveValue(todayStr());
+  await expect(ql.getByTestId('ql-yesterday')).toHaveCount(0);
+});
+
 test('market context: strip, chart, plan events; and it hides quietly when the market API is down', async ({ page }) => {
   await mockBackend(page);
   await signIn(page);
@@ -137,8 +155,35 @@ test('market context: strip, chart, plan events; and it hides quietly when the m
   await expect(down.getByRole('group', { name: 'Market context (times ET)' })).toHaveCount(0);
   await expect(down.getByTestId('day-verdict')).toBeVisible();
   await down.getByTestId('trade-row').last().click();
-  await expect(down.getByText('Chart unavailable for this trade')).toBeVisible();
+  await expect(down.getByTestId('trade-chart').getByText('Chart unavailable', { exact: true })).toBeVisible();
+  await expect(down.getByTestId('trade-chart').getByRole('button', { name: 'Retry' })).toBeVisible();
   expect(errors.filter((e) => !e.includes('502'))).toEqual([]);
+});
+
+test('chart: bars not in yet → calm pending note that retries itself; a real error → working Retry', async ({ page }) => {
+  await mockBackend(page);
+  // Registered after mockBackend, so it runs first; `fallback()` hands later calls to the normal bars mock.
+  let barsCalls = 0;
+  await page.route('**/api/market/bars**', (r) => {
+    barsCalls++;
+    if (barsCalls === 1) {
+      const date = new URL(r.request().url()).searchParams.get('date');
+      return r.fulfill({ json: { symbol: 'MNQ=F', interval: '1m', tz: 'America/New_York', date, bars: [], pending: true, retryAfterSec: 1 } });
+    }
+    if (barsCalls === 2) return r.fulfill({ status: 502, json: { error: 'Chart data is unavailable right now. Try again later.' } });
+    return r.fallback();
+  });
+  await signIn(page);
+  await open(page, 'today');
+  await page.getByTestId('trade-row').last().click();
+  const chart = page.getByTestId('trade-sheet').getByTestId('trade-chart');
+  await expect(chart.getByTestId('chart-pending')).toContainText('isn’t in yet');
+  // Auto-retry after retryAfterSec (1s here) → the 2nd response is a 502 → small error with Retry (not cached).
+  await expect(chart.getByText('Chart unavailable', { exact: true })).toBeVisible();
+  await chart.getByRole('button', { name: 'Retry' }).click();
+  await expect(chart.getByRole('img', { name: /candles, entry/ })).toBeVisible();
+  await expect(chart.getByTestId('chart-pending')).toHaveCount(0);
+  expect(barsCalls).toBe(3);
 });
 
 // ── No dead buttons ─────────────────────────────────────────────────────
