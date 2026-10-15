@@ -224,27 +224,166 @@ def test_admin_toggle_requires_bool(world, people):
     assert call("POST", f"/api/admin/users/{friend.username}/admin", owner, body={})[0] == 400
 
 
-def test_last_admin_cannot_be_demoted_or_deleted(world, people):
-    # A stale token: `friend` still claims admin, but the owner is the only real admin left.
+ALL_ROUTES = [
+    ("GET", "/api/admin/users"),
+    ("POST", "/api/admin/users"),
+    ("POST", "/api/admin/users/{owner}/disable"),
+    ("POST", "/api/admin/users/{owner}/enable"),
+    ("POST", "/api/admin/users/{owner}/reset-password"),
+    ("POST", "/api/admin/users/{owner}/resend"),
+    ("POST", "/api/admin/users/{owner}/admin"),
+    ("DELETE", "/api/admin/users/{owner}"),
+]
+
+
+@pytest.mark.parametrize(("method", "path"), ALL_ROUTES)
+def test_demoted_admin_with_stale_token_is_403(world, people, method, path):
+    # `friend` was demoted (or never promoted) but their token still says `cognito:groups: [admin]`.
     owner, friend, _ = people
-    status, body = call("POST", f"/api/admin/users/{owner.username}/admin", friend, body={"admin": False})
-    assert status == 409
-    assert "at least one admin" in body["error"]
-    assert call("DELETE", f"/api/admin/users/{owner.username}", friend)[0] == 409
-    assert call("POST", f"/api/admin/users/{owner.username}/disable", friend)[0] == 409
+    body = {"email": "new@example.com", "admin": False}
+    status, res = call(method, path.format(owner=owner.username), friend, body=body)
+    assert status == 403
+    assert "changed" in res["error"]
     assert owner.username in world.admins()
+    assert world.get(owner)["Enabled"] is True
+    assert "new@example.com" not in {
+        u["Username"] for u in world.idp.list_users(UserPoolId=world.pool)["Users"]
+    }
 
 
-def test_disabled_admin_does_not_count_as_last_admin(world, people):
-    # `friend` is a disabled admin with a still-valid token; it must not lock out the only enabled admin.
+def test_demotion_takes_effect_before_token_expiry(world, people):
+    owner, friend, _ = people
+    call("POST", f"/api/admin/users/{friend.username}/admin", owner, body={"admin": True})
+    assert call("GET", "/api/admin/users", friend)[0] == 200
+    call("POST", f"/api/admin/users/{friend.username}/admin", owner, body={"admin": False})
+    # Same token (claim still says admin), but the live check now refuses.
+    assert call("GET", "/api/admin/users", friend)[0] == 403
+
+
+@pytest.mark.parametrize(("method", "path"), ALL_ROUTES)
+def test_disabled_admin_caller_is_403(world, people, method, path):
+    # `friend` is still in the admin group but disabled; their unexpired token must not work.
     owner, friend, _ = people
     world.idp.admin_add_user_to_group(UserPoolId=world.pool, Username=friend.username, GroupName="admin")
     world.idp.admin_disable_user(UserPoolId=world.pool, Username=friend.username)
-    assert call("POST", f"/api/admin/users/{owner.username}/disable", friend)[0] == 409
-    assert call("DELETE", f"/api/admin/users/{owner.username}", friend)[0] == 409
+    status, _ = call(method, path.format(owner=owner.username), friend, body={"email": "n@example.com"})
+    assert status == 403
     assert world.get(owner)["Enabled"] is True
-    # Removing the disabled admin itself is fine: the owner is still an enabled admin.
+    assert owner.username in world.admins()
+
+
+def test_deleted_admin_caller_is_403(world, people):
+    owner, friend, _ = people
+    call("POST", f"/api/admin/users/{friend.username}/admin", owner, body={"admin": True})
+    world.idp.admin_delete_user(UserPoolId=world.pool, Username=friend.username)
+    assert call("GET", "/api/admin/users", friend)[0] == 403
+
+
+def test_disabled_admin_does_not_block_removal(world, people):
+    # A disabled admin never counts toward "at least one admin", so the enabled owner can remove it.
+    owner, friend, _ = people
+    world.idp.admin_add_user_to_group(UserPoolId=world.pool, Username=friend.username, GroupName="admin")
+    world.idp.admin_disable_user(UserPoolId=world.pool, Username=friend.username)
     assert call("DELETE", f"/api/admin/users/{friend.username}", owner)[0] == 200
+    assert world.admins() == {owner.username}
+
+
+def test_last_admin_guard_before_change(world, people, monkeypatch):
+    # Unreachable through honest callers now (the caller is a live, distinct enabled admin), so simulate the
+    # live check passing while the pre-change count sees only the target.
+    owner, friend, _ = people
+    call("POST", f"/api/admin/users/{friend.username}/admin", owner, body={"admin": True})
+    real = admin_app._admin_usernames
+    monkeypatch.setattr(
+        admin_app,
+        "_admin_usernames",
+        lambda *, enabled_only=False: {friend.username} if enabled_only else real(),
+    )
+    status, body = call("POST", f"/api/admin/users/{friend.username}/admin", owner, body={"admin": False})
+    assert status == 409
+    assert "at least one admin" in body["error"]
+    assert call("POST", f"/api/admin/users/{friend.username}/disable", owner)[0] == 409
+    assert call("DELETE", f"/api/admin/users/{friend.username}", owner)[0] == 409
+    assert friend.username in world.admins()
+    assert world.get(friend)["Enabled"] is True
+
+
+# ── concurrent admin-on-admin changes (TOCTOU on the last-admin guard) ──
+@pytest.fixture
+def two_admins(world, people):
+    owner, friend, _ = people
+    world.idp.admin_add_user_to_group(UserPoolId=world.pool, Username=friend.username, GroupName="admin")
+    return owner, friend
+
+
+def _race(monkeypatch, method: str, concurrent) -> None:
+    """Make the Cognito write `method` run `concurrent` right after it (the other admin's racing request)."""
+    client = admin_app.cognito()
+    real = getattr(client, method)
+
+    def wrapped(**kw):
+        out = real(**kw)
+        concurrent()
+        return out
+
+    monkeypatch.setattr(client, method, wrapped)
+
+
+def test_concurrent_demotes_roll_back(world, two_admins, monkeypatch):
+    owner, friend = two_admins
+    # While owner demotes friend, friend's request demotes owner.
+    _race(
+        monkeypatch,
+        "admin_remove_user_from_group",
+        lambda: world.idp.admin_remove_user_from_group(
+            UserPoolId=world.pool, Username=owner.username, GroupName="admin"
+        ),
+    )
+    status, body = call("POST", f"/api/admin/users/{friend.username}/admin", owner, body={"admin": False})
+    assert status == 409
+    assert "at least one admin" in body["error"]
+    assert friend.username in world.admins()  # rolled back: re-added
+
+
+def test_concurrent_disables_roll_back(world, two_admins, monkeypatch):
+    owner, friend = two_admins
+    signed_out: list[str] = []
+    client = admin_app.cognito()
+    monkeypatch.setattr(client, "admin_user_global_sign_out", lambda **kw: signed_out.append(kw["Username"]))
+    # While owner disables friend, friend's request disables owner.
+    _race(
+        monkeypatch,
+        "admin_disable_user",
+        lambda: world.idp.admin_disable_user(UserPoolId=world.pool, Username=owner.username),
+    )
+    status, _ = call("POST", f"/api/admin/users/{friend.username}/disable", owner)
+    assert status == 409
+    assert world.get(friend)["Enabled"] is True  # rolled back: re-enabled
+    assert signed_out == []  # a rolled-back disable doesn't kick them out
+
+
+def test_disable_without_race_keeps_change(world, two_admins):
+    owner, friend = two_admins
+    assert call("POST", f"/api/admin/users/{friend.username}/disable", owner)[0] == 200
+    assert world.get(friend)["Enabled"] is False
+
+
+def test_delete_rechecks_admins_right_before_deleting(world, two_admins, monkeypatch):
+    owner, friend = two_admins
+    world.seed_data(friend)
+    real_target = admin_app._target
+
+    def target_then_race(username, claims):
+        out = real_target(username, claims)
+        # After the pre-check, friend's concurrent request disables the caller (owner).
+        world.idp.admin_disable_user(UserPoolId=world.pool, Username=owner.username)
+        return out
+
+    monkeypatch.setattr(admin_app, "_target", target_then_race)
+    status, body = call("DELETE", f"/api/admin/users/{friend.username}", owner)
+    assert status == 409
+    assert "at least one admin" in body["error"]
+    assert world.get(friend)["Username"] == friend.username  # not deleted
 
 
 def test_other_admin_can_be_removed_when_two_remain(world, people):

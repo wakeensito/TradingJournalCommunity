@@ -214,29 +214,60 @@ Resources:
                   - cognito-idp:CreateUserPool
                   - cognito-idp:ListUserPools
                 Resource: '*'
-              - Sid: AppCognito
+              # Pool/client/group management only. NO Admin*/user-data actions. The account also
+              # hosts other apps' user pools (e.g. kinfolk) and userpool/* can't be name-scoped
+              # (pool ARNs are random IDs), so every MUTATING action is gated on the ownership
+              # tag template.yaml puts on UserPool (UserPoolTags), the same pattern as
+              # AppCloudFrontWriteOwn. Every action here supports aws:ResourceTag on the userpool
+              # resource (Service Authorization Reference, Amazon Cognito User Pools).
+              # Reads stay ungated so CloudFormation can always describe the stack's resources.
+              # Groups: the app stack's `admin` UserPoolGroup (CFN handler: Create/Get/Update/DeleteGroup).
+              - Sid: AppCognitoRead
                 Effect: Allow
-                # Pool/client/group management only. NO Admin*/user-data actions: the account also
-                # hosts other apps' user pools (e.g. kinfolk), and userpool/* can't be name-scoped.
-                # Groups: the app stack's `admin` UserPoolGroup (CFN handler: Create/Get/Update/DeleteGroup).
+                Action:
+                  - cognito-idp:GetGroup
+                  - cognito-idp:DescribeUserPool
+                  - cognito-idp:DescribeUserPoolClient
+                  - cognito-idp:GetUserPoolMfaConfig
+                  - cognito-idp:ListTagsForResource
+                Resource: !Sub 'arn:${AWS::Partition}:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*'
+              # First tagging: there is deliberately NO aws:RequestTag escape hatch for
+              # TagResource. "Tag any untagged pool with our tag" would let this role claim
+              # another app's pool (kinfolk's carries no ownership tag) and then update or
+              # delete it. A NEW pool gets the tag in CreateUserPool itself (UserPoolTags), and
+              # the existing pool was tagged by an app deploy that ran BEFORE this condition
+              # existed (see the PR / handoff for the deploy order). If the order is ever
+              # reversed, tag the pool once from a laptop:
+              #   aws cognito-idp tag-resource --resource-arn <pool arn> \
+              #     --tags tradejournal:managed-by=tradejournal-cicd
+              - Sid: AppCognitoWriteOwn
+                Effect: Allow
                 Action:
                   - cognito-idp:CreateGroup
-                  - cognito-idp:GetGroup
                   - cognito-idp:UpdateGroup
                   - cognito-idp:DeleteGroup
-                  - cognito-idp:DescribeUserPool
                   - cognito-idp:UpdateUserPool
                   - cognito-idp:DeleteUserPool
                   - cognito-idp:CreateUserPoolClient
-                  - cognito-idp:DescribeUserPoolClient
                   - cognito-idp:UpdateUserPoolClient
                   - cognito-idp:DeleteUserPoolClient
-                  - cognito-idp:GetUserPoolMfaConfig
                   - cognito-idp:SetUserPoolMfaConfig
                   - cognito-idp:TagResource
-                  - cognito-idp:UntagResource
-                  - cognito-idp:ListTagsForResource
                 Resource: !Sub 'arn:${AWS::Partition}:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*'
+                Condition:
+                  StringEquals:
+                    aws:ResourceTag/tradejournal:managed-by: tradejournal-cicd
+              # Untag our own pool, but never the ownership tag itself.
+              - Sid: AppCognitoUntagOwn
+                Effect: Allow
+                Action: cognito-idp:UntagResource
+                Resource: !Sub 'arn:${AWS::Partition}:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*'
+                Condition:
+                  StringEquals:
+                    aws:ResourceTag/tradejournal:managed-by: tradejournal-cicd
+                  ForAllValues:StringNotEquals:
+                    aws:TagKeys:
+                      - tradejournal:managed-by
               # HTTP API (v2) + JWT authorizer + stages. API IDs are generated,
               # so no name scoping; pinned to the v2 /apis path tree in this
               # region (no REST /restapis); tags are PUT/DELETE on /tags/*.
@@ -555,8 +586,12 @@ Resources:
               StringLike:
                 s3:prefix: ['users/*']
           # Admin function (Settings → People). A ceiling only: the function's own policy pins the
-          # app's pool ARN. RESIDUAL RISK: userpool/* can't be name-scoped, so a role this pipeline
-          # creates could be granted these on another app's pool in this account+region.
+          # app's pool ARN. userpool/* can't be name-scoped (random IDs), so the ceiling is gated on
+          # the ownership tag template.yaml puts on UserPool: a role this pipeline creates can't be
+          # granted these on another app's pool (e.g. kinfolk). All eleven actions support
+          # aws:ResourceTag on the userpool resource (Service Authorization Reference, Amazon
+          # Cognito User Pools), so nothing needs an ungated split. The pool must carry the tag
+          # BEFORE this condition deploys, or AdminFunction is denied (see the PR's deploy order).
           - Sid: AppUserAdmin
             Effect: Allow
             Action:
@@ -572,6 +607,9 @@ Resources:
               - cognito-idp:AdminAddUserToGroup
               - cognito-idp:AdminRemoveUserFromGroup
             Resource: !Sub 'arn:${AWS::Partition}:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*'
+            Condition:
+              StringEquals:
+                aws:ResourceTag/tradejournal:managed-by: tradejournal-cicd
           # Converse / ConverseStream authorize as InvokeModel /
           # InvokeModelWithResponseStream (they are not separate IAM actions).
           # foundation-model uses region '*' because cross-region inference
