@@ -4,6 +4,7 @@ import {
   barIndexAt,
   barsRequestForTrade,
   daysAgo,
+  etDate,
   etTime,
   eventsForPlan,
   formatChangePct,
@@ -158,5 +159,29 @@ describe('fetchMarketDay', () => {
       throw Object.assign(new Error('nope'), { status: 502 });
     };
     expect(await fetchMarketDay(get, '2026-10-02')).toBeNull();
+  });
+});
+
+describe('pending bars (Yahoo lags 5–15 min)', () => {
+  it('parses pending, clamps retryAfterSec, and the market-closed reason', () => {
+    const base = { symbol: 'MNQ=F', interval: '1m', tz: 'America/New_York', bars: [] };
+    expect(parseMarketBars({ ...base, pending: true, retryAfterSec: 120 })).toMatchObject({ pending: true, retryAfterSec: 120 });
+    expect(parseMarketBars({ ...base, pending: true })!.retryAfterSec).toBe(120);
+    expect(parseMarketBars({ ...base, pending: true, retryAfterSec: 99999 })!.retryAfterSec).toBe(600);
+    expect(parseMarketBars({ ...base, reason: 'market-closed' })).toMatchObject({ reason: 'market-closed' });
+    expect(parseMarketBars(base)).not.toHaveProperty('pending');
+  });
+  it('sends the trade window as ET HH:MM so the server can tell bars are behind', () => {
+    // localEpoch uses the runner's clock; derive the expected ET labels the same way the code does.
+    const req = barsRequestForTrade({ symbol: 'MNQZ5', date: '2026-10-13', assetType: 'futures', time: '10:00', exitTime: '10:20' });
+    const e = localEpoch('2026-10-13', '10:00')!;
+    const x = localEpoch('2026-10-13', '10:20')!;
+    if (etDate(e) === '2026-10-13') expect(req.from).toBe(etTime(e));
+    if (etDate(x) === '2026-10-13') expect(req.to).toBe(etTime(x));
+    expect(etDate(Date.UTC(2026, 9, 15, 3, 59) / 1000)).toBe('2026-10-14'); // 23:59 EDT
+    expect(barsRequestForTrade({ symbol: 'MNQZ5', date: '2026-10-13', assetType: 'futures' })).not.toHaveProperty('to');
+    expect(marketBarsPath({ symbol: 'MNQZ5', date: '2026-10-15', assetType: 'futures', from: '00:10', to: '00:10' })).toBe(
+      '/market/bars?symbol=MNQZ5&date=2026-10-15&assetType=futures&from=00%3A10&to=00%3A10',
+    );
   });
 });

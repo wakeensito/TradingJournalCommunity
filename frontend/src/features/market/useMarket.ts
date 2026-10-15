@@ -2,7 +2,7 @@
 // The fetcher is injected so this module never imports auth: pass a GET that resolves a path relative to the
 // API base and throws on non-2xx (e.g. `(p) => api.get(p)` once lib/api.ts exposes one — see docs/market-context.md).
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   type ApiGet,
   type BarsRequest,
@@ -21,11 +21,14 @@ export interface MarketState<T> {
   loading: boolean;
   /** Set when the request failed; `status` is the HTTP status when the fetcher exposes one (ApiError does). */
   error: { message: string; status: number | null } | null;
+  /** Fetch again now, keeping the current data on screen while it loads. */
+  reload: () => void;
 }
 
 interface Entry {
   at: number;
   ttlMs: number;
+  errorTtlMs: number;
   value?: unknown;
   error?: MarketState<unknown>['error'];
   promise?: Promise<void>;
@@ -33,7 +36,7 @@ interface Entry {
 
 const cache = new Map<string, Entry>();
 const listeners = new Map<string, Set<() => void>>();
-const ERROR_TTL_MS = 60_000; // don't hammer a failing source from every mounted component
+const ERROR_TTL_MS = 60_000; // don't hammer a failing source from every mounted component (day strips)
 const MAX_ENTRIES = 300;
 
 function notify(key: string) {
@@ -41,7 +44,7 @@ function notify(key: string) {
 }
 
 function fresh(e: Entry | undefined, now: number): e is Entry {
-  return !!e && (e.promise !== undefined || now - e.at < (e.error ? ERROR_TTL_MS : e.ttlMs));
+  return !!e && (e.promise !== undefined || now - e.at < (e.error ? e.errorTtlMs : e.ttlMs));
 }
 
 function errorOf(e: unknown): NonNullable<MarketState<unknown>['error']> {
@@ -52,25 +55,37 @@ function errorOf(e: unknown): NonNullable<MarketState<unknown>['error']> {
   return { message: e instanceof Error ? e.message : 'Request failed', status };
 }
 
-function load(key: string, run: () => Promise<unknown>, parse: (x: unknown) => unknown, ttlMs: number) {
+interface LoadOpts {
+  /** How long a failure is remembered (0 = retry on the next mount). */
+  errorTtlMs?: number;
+  /** Per-value TTL override (e.g. 0 for a `pending` bars result, so it's never served from memory). */
+  ttlFor?: (value: unknown) => number;
+  /** Refetch even if the entry is fresh (an in-flight request is still shared). */
+  force?: boolean;
+}
+
+function load(key: string, run: () => Promise<unknown>, parse: (x: unknown) => unknown, ttlMs: number, o: LoadOpts = {}) {
   const now = Date.now();
-  if (fresh(cache.get(key), now)) return;
-  if (cache.size > MAX_ENTRIES) cache.delete(cache.keys().next().value as string);
-  const entry: Entry = { at: now, ttlMs };
+  const prev = cache.get(key);
+  if (prev?.promise || (!o.force && fresh(prev, now))) return;
+  if (!prev && cache.size > MAX_ENTRIES) cache.delete(cache.keys().next().value as string);
+  const errorTtlMs = o.errorTtlMs ?? ERROR_TTL_MS;
+  // Keep the last good value visible while reloading (a pending chart keeps its partial candles).
+  const entry: Entry = { at: now, ttlMs, errorTtlMs, value: prev?.value };
   entry.promise = run()
     .then((raw) => {
       const value = parse(raw);
       if (value === null) throw new Error('Unexpected market response');
-      cache.set(key, { at: Date.now(), ttlMs, value });
+      cache.set(key, { at: Date.now(), ttlMs: o.ttlFor ? o.ttlFor(value) : ttlMs, errorTtlMs, value });
     })
     .catch((e: unknown) => {
-      cache.set(key, { at: Date.now(), ttlMs, error: errorOf(e) });
+      cache.set(key, { at: Date.now(), ttlMs, errorTtlMs, error: errorOf(e) });
     })
     .finally(() => notify(key));
   cache.set(key, entry);
 }
 
-function snapshot<T>(key: string | null): MarketState<T> {
+function snapshot<T>(key: string | null): Omit<MarketState<T>, 'reload'> {
   if (!key) return { data: null, loading: false, error: null };
   const e = cache.get(key);
   if (!e) return { data: null, loading: true, error: null };
@@ -82,6 +97,7 @@ function useCached<T>(
   run: () => Promise<unknown>,
   parse: (x: unknown) => T | null,
   ttlMs: number,
+  opts: Omit<LoadOpts, 'force'> = {},
 ): MarketState<T> {
   const [, bump] = useState(0);
   useEffect(() => {
@@ -90,14 +106,18 @@ function useCached<T>(
     let set = listeners.get(key);
     if (!set) listeners.set(key, (set = new Set()));
     set.add(fn);
-    load(key, run, parse, ttlMs);
+    load(key, run, parse, ttlMs, opts);
     fn(); // pick up a cache entry created (or already settled) during this render
     return () => {
       set.delete(fn);
     };
     // `run`/`parse` are derived from `key`; re-running on their identity would refetch every render.
   }, [key, ttlMs]);
-  return snapshot<T>(key);
+  const reload = useCallback(() => {
+    if (key) load(key, run, parse, ttlMs, { ...opts, force: true });
+    // Same reasoning as above: everything else is derived from `key`.
+  }, [key, ttlMs]);
+  return { ...snapshot<T>(key), reload };
 }
 
 function todayStr(): string {
@@ -130,8 +150,14 @@ export function barsTooOld(date: string, today = todayStr()): boolean {
 export function useMarketBars(apiGet: ApiGet, req: BarsRequest | null): MarketState<MarketBars> {
   const ok = req && req.symbol.trim() && !barsTooOld(req.date) ? req : null;
   const path = ok ? marketBarsPath(ok) : null;
-  const ttl = ok && daysAgo(ok.date, todayStr()) === 0 ? 2 * 60_000 : Number.POSITIVE_INFINITY;
-  return useCached(path ? `bars:${path}` : null, () => apiGet(path!), parseMarketBars, ttl);
+  // Today (or yesterday, whose late bars may still land just after midnight) refreshes; history is fixed.
+  const age = ok ? daysAgo(ok.date, todayStr()) : null;
+  const ttl = age !== null && age <= 1 ? 60_000 : Number.POSITIVE_INFINITY;
+  // Failures and pending results are never served from memory: the next open (or Retry) asks again.
+  return useCached(path ? `bars:${path}` : null, () => apiGet(path!), parseMarketBars, ttl, {
+    errorTtlMs: 0,
+    ttlFor: (v) => ((v as MarketBars).pending ? 0 : ttl),
+  });
 }
 
 /** Imperative fetch for one-tap actions (e.g. "Add today's events" in the pre-market plan). Shares the cache. */
