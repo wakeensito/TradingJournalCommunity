@@ -304,7 +304,12 @@ def _ensure_admin_left(rollback) -> None:
     """
     if _admin_usernames(enabled_only=True):
         return
-    rollback()
+    try:
+        rollback()
+    except ClientError:
+        logger.exception("rollback failed: no enabled admin left; restore one with scripts/make-admin.sh")
+        msg = "That change left no admin and couldn't be undone. Run scripts/make-admin.sh."
+        raise ApiError(500, msg) from None
     logger.warning("change rolled back: it would have left no enabled admin")
     raise ApiError(409, _LAST_ADMIN)
 

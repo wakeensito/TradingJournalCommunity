@@ -6,6 +6,7 @@ import re
 
 import pytest
 from admin_helpers import admin_app, call
+from botocore.exceptions import ClientError
 
 POLICY = re.compile(r"^(?=.*[A-Z])(?=.*[a-z])(?=.*\d).{8,}$")
 
@@ -451,3 +452,21 @@ def test_cannot_delete_self(world, people):
 def test_unknown_route_is_404(world, people):
     owner, *_ = people
     assert call("GET", "/api/admin/nope", owner)[0] == 404
+
+
+def test_failed_rollback_returns_500(world, two_admins, monkeypatch):
+    owner, friend = two_admins
+    _race(
+        monkeypatch,
+        "admin_disable_user",
+        lambda: world.idp.admin_disable_user(UserPoolId=world.pool, Username=owner.username),
+    )
+    client = admin_app.cognito()
+
+    def broken_enable(**_kw):
+        raise ClientError({"Error": {"Code": "InternalErrorException", "Message": "boom"}}, "AdminEnableUser")
+
+    monkeypatch.setattr(client, "admin_enable_user", broken_enable)
+    status, body = call("POST", f"/api/admin/users/{friend.username}/disable", owner)
+    assert status == 500
+    assert "make-admin" in body["error"]
